@@ -61,13 +61,11 @@ pagoda2WebApp <- setRefClass(
               originalP2object <<- pagoda2obj
             }
 
-		# Check that the object we are getting is what it should be
+		        # Check that the object we are getting is what it should be
             if (class(pagoda2obj) != "Pagoda2") {
                 cat("We have an error");
                 stop("ERROR: The provided object is not a pagoda 2 object")
             }
-
-
 
             # Keep the name for later (consistent) use
             name <<- appName;
@@ -922,6 +920,21 @@ pagoda2WebApp <- setRefClass(
 		      toJSON(retd);
 		    },
 
+		    generateEmbeddingStructure = function() {
+		      resp <- list();
+		      i <- 0;
+		      for( r in names(originalP2object$reductions)) {
+		        resp[[r]] <- list();
+		        for ( n in names(originalP2object$embeddings[[r]])) {
+		          id <- paste('emb',r,n,sep='_')
+		          resp[[r]][[n]] <- id;
+		          i <- i+1
+		        }
+		      }
+		      resp
+		    }
+		    ,
+
 		    serialiseToDirectory = function(dir = null) {
 		      if (is.null(dir)) {
 		        stop('Please specify a directory');
@@ -941,7 +954,62 @@ pagoda2WebApp <- setRefClass(
           writeDataToFile(dir, 'cellmetadata.json', cellmetadataJSON());
           writeDataToFile(dir, 'geneinformation.json', geneInformationJSON());
 
-          # TODO: Continue
+          # Reduction and embedding hierarchy two different calls into one data structure
+          embStructure <- generateEmbeddingStructure()
+          writeDataToFile(dir, 'embeddingstructure.json', toJSON(embStructure));
+
+          # Now serialise the embeddings
+          for (reduc in names(embStructure)) {
+            for (embed in names(embStructure[[reduc]])) {
+              id <- embStructure[[reduc]][[embed]][[1]];
+              filename <- paste0(id, '.json');
+
+              a <- embeddings[[reduc]][[embed]];
+              ret <- list(
+                values = .self$packCompressFloat64Array(as.vector(a)),
+                dim =  dim(a),
+                rownames = rownames(a),
+                colnames = colnames(a)
+              );
+              e <- toJSON(ret);
+
+              writeDataToFile(dir, filename, e);
+            }
+          }
+
+          # Serialise the matsparse array
+
+          # Functions for serialising sparse arrays
+          simpleSerializeArrayToFile <- function(array, dir, filename) {
+            conn <- file(file.path(dir, filename), open='w');
+            x_length <- length(array);
+            for (i in 1:x_length) {
+              cat(array[i], file=conn);
+              cat(' ', file=conn);
+            }
+            close(conn);
+          }
+
+          serialiseSparseArray <- function(array, dir, filename) {
+            # Serialise the i
+            cat('Serialising i...\n')
+            simpleSerializeArrayToFile(array@i, dir, paste0(filename,'i.txt'))
+            cat('Serialising p...\n')
+            simpleSerializeArrayToFile(array@p, dir,  paste0(filename,'p.txt'))
+            cat('Serialising x...\n')
+            simpleSerializeArrayToFile(array@x, dir,  paste0(filename,'x.txt'))
+            cat('Serialising Dim...\n')
+            simpleSerializeArrayToFile(array@Dim, dir,  paste0(filename,'Dim.txt'))
+            cat('Serialising Dimnames1...\n')
+            writeDataToFile(dir, paste0(filename,'Dimnames1.json') , toJSON(array@Dimnames[[1]]));
+            cat('Serialising Dimnames2...\n')
+            writeDataToFile(dir, paste0(filename,'Dimnames2.json'), toJSON(array@Dimnames[[2]]));
+          }
+
+          # Serialise the main sparse matrix
+          serialiseSparseArray(matsparse, dir, 'matsparse_');
+
+          # TODO: Continue here
 
 
 		    }
