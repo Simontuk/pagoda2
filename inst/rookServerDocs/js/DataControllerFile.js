@@ -84,7 +84,7 @@ DataControllerFile.prototype.getCellOrder = function(callback) {
 /**
  * Get the cell metadata
  */
-DataControllerFile.prototype.getCellMetadata = function(callback) {
+DataControllerFile.prototype.getCellMetadata = function(callback, callbackParameters) {
   // FIXME: Assume format reader is ready here
   var fr = this.formatReader;
 
@@ -93,7 +93,7 @@ DataControllerFile.prototype.getCellMetadata = function(callback) {
       		var dataLength = DataControllerFile.prototype.getNullTerminatedStringLength(text);
 
       		var textTrimmed = text.slice(0, dataLength);
-      		callback(JSON.parse(textTrimmed));
+      		callback(JSON.parse(textTrimmed), callbackParameters);
 
   	 }, fr);
   }
@@ -567,8 +567,6 @@ DataControllerFile.prototype.getAspectMatrixByAspectInternal2 = function(cellInd
   };
 
   function handleComplete(callback, dcf, cellIndexStart, cellIndexEnd) {
-    console.log('COMPLETE HANDLE');
-    console.log(resultsArray);
     // convert back to sparse matrix and return to callback
      var x = new Array();
      var i = new Array();

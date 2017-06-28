@@ -61,6 +61,7 @@ metaDataHeatmapViewer.prototype.initialize = function () {
     console.log('Initializing Metadata viewer...');
 
     var metadataContainer = $('#metadata-area-container');
+    var contextMenuOpen = false;
     metadataContainer.append('<div id="metadata-area-container-inner"></div>');
 
     // We need an inner container for establishing a new
@@ -101,7 +102,7 @@ metaDataHeatmapViewer.prototype.initialize = function () {
     // clickableRegions that are used to identify each individual entry
     this.clickRegionsEntries = new clickableRegions();
 
-    // Setup the click listener
+    // Setup the click listeners
     // NOTE: At this point we are only interested in resoving
     // which line we are clicking on. In the future some of the
     // metadata should support clicking on individual cells and/or
@@ -109,22 +110,6 @@ metaDataHeatmapViewer.prototype.initialize = function () {
     // For clicking on contigious chucks (e.g. clusters) we
     // will need a propery that says the the data is guaranteed to be
     // contigious with the default ordering
-    (metadataAreaOverlay[0]).addEventListener('dblclick', function(e) {
-    	var x = e.offsetX;
-    	var y = e.offsetY;
-
-    	var mdhv = new metaDataHeatmapViewer();
-    	mdhv.clickRegionsRows.resolveClick(x,y, function(params) {
-    	    var embV = new embeddingViewer();
-    	    embV.setColorConfiguration('metadata');
-    	    // Here  we are just passing the params from the
-    	    // click region registration, we might want to change this
-    	    // later, but in any case keep processin in here to the minimum
-    	    embV.setMetadataColorInfo(params);
-    	    embV.updateColors();
-    	});
-    });
-
     // State for drag select
     this.primaryMouseButtonDown = false;
     this.dragging = false;
@@ -134,64 +119,58 @@ metaDataHeatmapViewer.prototype.initialize = function () {
     (metadataAreaOverlay[0]).addEventListener('mousedown', function(e) {
       // For preventing selection on double click
       e.preventDefault();
-
       var heatView = new metaDataHeatmapViewer();
       var drawConsts = heatView.getDrawConstants();
-      if (e.offsetX > drawConsts.left &  e.offsetX < drawConsts.left + drawConsts.width & e.which == 1) {
+      if (!contextMenuOpen & e.offsetX > drawConsts.left &  e.offsetX < drawConsts.left + drawConsts.width & e.which == 1) {
         heatView.primaryMouseButtonDown = true;
         heatView.dragStartX =  e.offsetX;
       }
-
     });
 
     (metadataAreaOverlay[0]).addEventListener('mouseup', function(e) {
-
       var heatDendView = new heatmapDendrogramViewer();
-
       var metaView = new metaDataHeatmapViewer();
-      metaView.primaryMouseButtonDown = false;
+      if(metaView.primaryMouseButtonDown){
+        metaView.primaryMouseButtonDown = false;
 
-      if(metaView.dragging) {
-        // End of drag
-        metaView.dragging = false;
+        if(metaView.dragging) {
+          // End of drag
+          metaView.dragging = false;
 
-        // Range of X is metaView.dragStartX  to e.offsetX
+          // Range of X is metaView.dragStartX  to e.offsetX
 
-        var drawConsts = metaView.getDrawConstants();
+          var drawConsts = metaView.getDrawConstants();
 
-        var dendV = new dendrogramViewer();
-        var curDisplayIdxs = dendV.getCurrentDisplayCellsIndexes();
-
-
-        var metaWidth = drawConsts.width - heatDendView.getPlotAreaRightPadding();
-
-
-        // Start and end as percent of current display cell range
-        var startPC = (metaView.dragStartX - drawConsts.left) / metaWidth;
-        var endPC = (e.offsetX - drawConsts.left) / metaWidth;
+          var dendV = new dendrogramViewer();
+          var curDisplayIdxs = dendV.getCurrentDisplayCellsIndexes();
+          var metaWidth = drawConsts.width - heatDendView.getPlotAreaRightPadding();
 
 
-        // For left to right drag
-        if (startPC > endPC) {
-          var tmp = startPC;
-          startPC = endPC;
-          endPC = tmp;
-        };
+          // Start and end as percent of current display cell range
+          var startPC = (metaView.dragStartX - drawConsts.left) / metaWidth;
+          var endPC = (e.offsetX - drawConsts.left) / metaWidth;
 
-        // Avoid out of bounds issues
-        if (endPC > 1) { endPC =1};
-        if (startPC < 0) { startPC = 0};
+          // For left to right drag
+          if (startPC > endPC) {
+            var tmp = startPC;
+            startPC = endPC;
+            endPC = tmp;
+          };
+  
+          // Avoid out of bounds issues
+          if (endPC > 1) { endPC =1};
+          if (startPC < 0) { startPC = 0};
 
-        var ncells = curDisplayIdxs[1] - curDisplayIdxs[0];
+          var ncells = curDisplayIdxs[1] - curDisplayIdxs[0];
+  
 
-
-        var startIndex = Math.floor(startPC * ncells)
-        var endIndex = Math.floor(endPC * ncells);
-
-        var cellsForSelection = dendV.getCurrentDisplayCells().slice(startIndex, endIndex);
-
-	      var cellSelCntr = new cellSelectionController();
-	      cellSelCntr.setSelection('heatmapSelection', cellsForSelection, 'Heatmap Selection', new Object(), "#0000ff");
+          var startIndex = Math.floor(startPC * ncells)
+          var endIndex = Math.floor(endPC * ncells);
+  
+          var cellsForSelection = dendV.getCurrentDisplayCells().slice(startIndex, endIndex);
+  
+	        var cellSelCntr = new cellSelectionController();
+  	      cellSelCntr.setSelection('heatmapSelection', cellsForSelection, 'Heatmap Selection', new Object(), "#FF0000");
 
             // Highlight on heatmap
             var metaView = new heatmapViewer();
@@ -208,16 +187,32 @@ metaDataHeatmapViewer.prototype.initialize = function () {
             //Highlight on Metadata
             var metaView = new metaDataHeatmapViewer();
             metaView.highlightCellSelectionByName('heatmapSelection');
+        }
+        else{
+          var x = e.offsetX;
+      	  var y = e.offsetY;
+      
+      	  var mdhv = new metaDataHeatmapViewer();
+    	    mdhv.clickRegionsRows.resolveClick(x,y, function(params) {
+    	      var embV = new embeddingViewer();
+    	      embV.setColorConfiguration('metadata');
+      	    // Here  we are just passing the params from the
+      	    // click region registration, we might want to change this
+      	    // later, but in any case keep processin in here to the minimum
+    	      embV.setMetadataColorInfo(params);
+    	      embV.updateColors();
+      	  });
+        }
       }
 
     });
 
 
-     (metadataAreaOverlay[0]).addEventListener('contextmenu', function(e) {
+    (metadataAreaOverlay[0]).addEventListener('contextmenu', function(e) {
         e.preventDefault();
         var x = e.offsetX;
         var y = e.offsetY;
-
+        contextMenuOpen = true;
         var mdhv = new metaDataHeatmapViewer();
         mdhv.clickRegionsEntries.resolveClick(x,y, function(params) {
         // params.cellid
@@ -269,8 +264,8 @@ metaDataHeatmapViewer.prototype.initialize = function () {
                 Ext.MessageBox.prompt("Set Limit","Specify a lower limit for number of cells in a new selection.",
                 function(btn,text){
                   var rejectionFunction = function(selection){return true;};
+                  
                   if(btn === "ok"){
-
                     if(!isNaN(text)){
                       var lowerLimit = parseInt(text);
                       rejectionFunction = function(selection){
@@ -278,14 +273,28 @@ metaDataHeatmapViewer.prototype.initialize = function () {
                       }
                     }
                   }
-                  for(var i = 0; i< params.totalLevels; i++ ){
-                    mdhv.makeCellSelectionFromMetadata(params.key,i,(params.keyLabel+ "_" + (i+1)).split(/\ |\#/).join(""),false, false,rejectionFunction)
-                  }
-                },this,false, "50")
+                  mdhv.makeAllCellSelectionsFromMetadata(params.key, (params.keyLabel + "_").split(/\ |\#/).join(""), rejectionFunction)
+                },this,false, "50") 
 
               }
+            },
+            {
+              text: "Identify Cell",
+              handler: function(){
+                var mdhv = new metaDataHeatmapViewer();
+    	          mdhv.clickRegionsEntries.resolveClick(x,y, function(params) {
+    	            var stsBar = new statusBar();
+    	            var msg = 'Cell: ' + params.cellid + ' ' + '(' + params.keyLabel + ': ' + params.valueLabel +')';
+    	            stsBar.showMessage(msg);
+    	          });
+              }
             }
-          ] //items
+          ], //items
+          listeners:{
+            'deactivate': function(){
+              contextMenuOpen = false;              
+            },
+          }
         }); //context menu
 
         contextMenu.showAt(e.clientX, e.clientY);
@@ -294,25 +303,6 @@ metaDataHeatmapViewer.prototype.initialize = function () {
         }); // resolve click
 
      });// contextmenu event listener
-
-
-
-    (metadataAreaOverlay[0]).addEventListener('click', function(e) {
-      e.preventDefault();
-
-      var x = e.offsetX;
-    	var y = e.offsetY;
-
-      var mdhv = new metaDataHeatmapViewer();
-    	mdhv.clickRegionsEntries.resolveClick(x,y, function(params) {
-    	    var stsBar = new statusBar();
-    	    var msg = 'Cell: ' + params.cellid + ' ' + '(' + params.keyLabel + ': ' + params.valueLabel +')';
-    	    stsBar.showMessage(msg);
-
-    	});
-    });
-
-
 
     (metadataAreaOverlay[0]).addEventListener('mousemove', function(e) {
     	var x = e.offsetX;
@@ -359,7 +349,7 @@ metaDataHeatmapViewer.prototype.initialize = function () {
 
         ctx.save();
         ctx.beginPath();
-        ctx.fillStyle = 'rgba(0,0,255,0.5)';
+        ctx.fillStyle = 'rgba(255,0,0,0.5)';
         ctx.fillRect(metaV.dragStartX, drawConsts.top, boundedX - metaV.dragStartX, actualPlotHeight);
         ctx.restore();
       }
@@ -475,7 +465,8 @@ metaDataHeatmapViewer.prototype.initialize = function () {
 metaDataHeatmapViewer.prototype.showOverlay = function(x) {
     var overlayArea = document.getElementById('metadata-area-overlay');
     var ctx = overlayArea.getContext('2d');
-
+    
+    var heatDendView = new heatmapDendrogramViewer();
     var metaV = new metaDataHeatmapViewer();
     var drawConsts = metaV.getDrawConstants();
 
@@ -484,7 +475,7 @@ metaDataHeatmapViewer.prototype.showOverlay = function(x) {
     ctx.lineWidth =1 ;
 
     // Within the heatmap area
-    if ( x > drawConsts.left & x < drawConsts.width + drawConsts.left) {
+    if ( x > drawConsts.left & x < drawConsts.width + drawConsts.left - heatDendView.getPlotAreaRightPadding()) {
     	ctx.beginPath();
     	ctx.moveTo(x, drawConsts.top);
     	ctx.lineTo(x, drawConsts.height + drawConsts.top);
@@ -607,7 +598,7 @@ metaDataHeatmapViewer.prototype.drawMetadata = function() {
 
       // Calculate label position
     	var labelYpad = cellHeight / 2 + 5;
-    	var labelXpad = 20;
+    	var labelXpad = 10;
 
       // Get  and clear the click areas
     	var mdhv = new metaDataHeatmapViewer();
@@ -821,7 +812,8 @@ metaDataHeatmapViewer.prototype.highlightCellSelectionsByNames = function(select
      var actualPlotHeight = drawConsts.height;
 
     ctx.save();
-    ctx.strokeStyle = cellSelCntr.getColor(selectionName) + "4C";
+    var selColor = pagHelpers.hexToRgb(cellSelCntr.getColor(selectionName));
+    ctx.strokeStyle = 'rgba(' + selColor.r + ',' + selColor.g + ',' + selColor.b + ',0.2)';
 
     // Draw vertical lines for selected cells
     for (var i = 0; i < n; i++) {
@@ -869,7 +861,7 @@ metaDataHeatmapViewer.prototype.makeCellSelectionFromMetadata = function(metadat
     var cellSelectionNames = [];
 
     var keys = Object.keys(data[callbackParameters.metadataName].data);
-
+    
     for (var kn = 0;  kn < keys.length; kn++) {
       var cellid = keys[kn];
       if(data[callbackParameters.metadataName].data[cellid] == val)  {
@@ -899,5 +891,37 @@ metaDataHeatmapViewer.prototype.makeCellSelectionFromMetadata = function(metadat
     }
 
   }, {metadataName: metadataName,metadataValue: metadataValue, selectionName: selectionName, focus: focus,highlight: highlight});
+
+}
+metaDataHeatmapViewer.prototype.makeAllCellSelectionsFromMetadata = function(metadataName,selNamePrefix, restriction) {
+  // Generate a cell selection
+
+  if(typeof restriction === "undefined"){
+    restriction = function(selection){return true;};
+  }
+
+  var dataCntr = new dataController();
+  dataCntr.getCellMetadata(function(data, callbackParameters) {
+    // data[callbackParameters.metadataName].data
+    var cellSelections = [];
+
+    var allCells = data[callbackParameters.metadataName].data;
+    
+    for (var cellid in  allCells) {
+      if(!cellSelections[allCells[cellid]]){
+        cellSelections[allCells[cellid]] = []
+      }
+      cellSelections[allCells[cellid]].push(cellid);
+    }
+
+    var cellSel = new cellSelectionController();
+    for(var i = 0; i < cellSelections.length; i++){
+      var cellSelectionNames = cellSelections[i];
+      if(restriction(cellSelectionNames)){
+        cellSel.setSelection(selNamePrefix + i, cellSelectionNames, selNamePrefix + i, {}, data[callbackParameters.metadataName].palette[i].substring(0,7));
+      }
+    }
+
+  }, {metadataName: metadataName, selNamePrefix: selNamePrefix});
 
 }
