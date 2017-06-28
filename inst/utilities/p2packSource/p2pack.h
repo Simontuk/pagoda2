@@ -1,5 +1,5 @@
-#ifndef _PAGODA2PACKER_H
-#define _PAGODA2PACKER
+#ifndef _P2PACK_H
+#define _P2PACK
 
 #include <string>
 #include <iostream>
@@ -12,8 +12,11 @@
 #include <string>
 
 
-using namespace std;
+// Exception codes
+#define EX_MEM_ALLOC_FAIL 0x0001
 
+
+using namespace std;
 
 // File format constants
 // The block size in bytes
@@ -23,7 +26,6 @@ using namespace std;
 // Max Int32 Value: 4294967295
 // Number.MAX_SAFE_INTEGER / 4294967295 = 2097152 =  2 * (1024)^2
 #define FILE_BLOCK_SIZE ((uint64_t) 2097152)
-
 
 // File format stucts
 struct fileHeader {
@@ -70,18 +72,15 @@ struct entry {
   uint32_t blockSize; // size in blocks as will be written in the index
 };
 
-// DEBUG or DEMO defines
-#define MANY_AS "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-#define MANY_BS "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-
-
 
 // Function prototypes
-void print_file_format_info();
-void make_dummy_file();
+
 void make_file(string &indir, string &outfile);
 string readWholeFile(string &filename);
 void make_file_from_payload(list<entry> &entries, string &filename);
+void makeMainSparseMatrix(list<entry> &entries, string &indir);
+
+void makeAspectSparseMatrix(list<entry> &entries, string &indir);
 
 template<class T>
 list<T>* readNumberArrayFromFile(string &filename);
