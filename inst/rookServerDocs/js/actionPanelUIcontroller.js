@@ -64,6 +64,15 @@ actionPanelUIcontroller.prototype.generateUI = function() {
 		tooltip: 'Perform differential expression between two genes in one group of cells',
 		height: '100%',
 		width: '100%',
+	    },
+	    {
+		layout: 'fit',
+		title: 'Metadata Comparison',
+		id: 'metaDataBarGraphTab',
+		glyph: 0xf080, //fa-bar-chart
+		tooltip: 'Examine membership of cells between different clusters of meta data',
+		height: '100%',
+		width: '100%',
 	    }
 	    /*,
 	    {
@@ -92,9 +101,11 @@ actionPanelUIcontroller.prototype.generateUI = function() {
     for (var i in availableMethods) {
 	    deMethodsStore.add({name: availableMethods[i].name, displayname: availableMethods[i].displayName});
     }
+    this.generateMetaDataStore();
 
     var deTab = Ext.getCmp('differentialExpressionTab');
     var espTab = Ext.getCmp('expressionScatterPlotTab');
+    var mdbgTab = Ext.getCmp('metaDataBarGraphTab');
     var formPanelDE =  Ext.create('Ext.form.Panel', {
     	id: 'formPanelDE',
     	height: '100%',
@@ -191,7 +202,7 @@ actionPanelUIcontroller.prototype.generateUI = function() {
 
     	] //items
     });
-    
+
     //Gene expression scatter chart
     var formPanelESP =  Ext.create('Ext.form.Panel', {
     	id: 'formPanelESP',
@@ -202,16 +213,16 @@ actionPanelUIcontroller.prototype.generateUI = function() {
     	  {
           xtype: 'radiogroup',
           name: 'analysisType',
-          fieldLabel: 'Analysis Type',
+          fieldLabel: 'Plotted Cells',
           items: [
             {
-              boxLabel: 'Against Selection',
+              boxLabel: 'From Selection',
               name: 'analysisTypeSelection',
               inputValue: 'vsSelection',
               disabled: true
             },
             {
-              boxLabel: 'Against All Cells',
+              boxLabel: 'All Cells',
               name: 'analysisTypeSelection',
               inputValue: 'vsBackground',
               checked: true
@@ -238,10 +249,11 @@ actionPanelUIcontroller.prototype.generateUI = function() {
     	    fieldLabel: 'Reference Cell Selection',
     	    queryMode: 'local',
     	    editable: false,
+    	    disabled: true,
     	    store: Ext.data.StoreManager.lookup('cellSelectionStoreForDE'),
     	    displayField: 'displayname',
     	    valueField: 'selectionname',
-    	    disabled: true
+    	    //disabled: true
     	  },
     	  {
     	    xtype: 'textfield',
@@ -255,22 +267,65 @@ actionPanelUIcontroller.prototype.generateUI = function() {
     	  },
     	  {
     	    xtype: 'button',
-    	    text: 'Build Plot',
+    	    text: 'Make Plot',
     	    margin: '5 5 5 5',
     	    handler: UIcontroller.generateESPwindow
     	  },
     	  {
     	    xtype: 'button',
     	    glyph: 0xf128,
-    	    text: 'help',
+    	    text: 'Help',
     	    margin: '5 5 5 5',
     	    handler: UIcontroller.showESPhelpDialog
     	  }
     	]
     });
-    
+    //Meta Data Bar Graph
+    var formPanelMDBG = Ext.create('Ext.form.Panel',{
+      id: 'formPanelMDBG',
+    	height: '100%',
+    	width: '100%',
+    	bodyPadding: 10,
+      items: [
+        {
+          id: 'metaDataSelectionA',
+          xtype: 'combo',
+          fieldLabel: 'Reference Meta Data Clusters',
+          queryMode: 'local',
+          editable: false,
+          store:Ext.data.StoreManager.lookup('metaDataSelectionStoreForDBG'),
+          displayField: 'displayName',
+          valueField: 'internalName'
+        },
+        {
+          id: 'metaDataSelectionB',
+          xtype: 'combo',
+          fieldLabel: 'Examined Meta Data Clusters',
+          queryMode: 'local',
+          editable: false,
+          store: Ext.data.StoreManager.lookup('metaDataSelectionStoreForDBG'),
+          displayField: 'displayName',
+          valueField: 'internalName'
+        },
+        {
+    	    xtype: 'button',
+    	    text: 'Make Plot',
+    	    margin: '5 5 5 5',
+    	    handler: UIcontroller.generateMDBGwindow
+    	  },
+    	  {
+    	    xtype: 'button',
+    	    glyph: 0xf128,
+    	    text: 'Help',
+    	    margin: '5 5 5 5',
+    	    handler: UIcontroller.showMDBGhelpDialog
+    	  }
+      ]
+    })
+
     deTab.add(formPanelDE);
     espTab.add(formPanelESP);
+    mdbgTab.add(formPanelMDBG)
     actionsTab.add(actionsInnerTab);
 };
 
@@ -334,8 +389,107 @@ actionPanelUIcontroller.prototype.showESPhelpDialog = function (){
       title: 'Help: Expression Scatter Plots',
       scrollable: true,
       bodyPadding: 10,
-      html: '<h2>Plotting differential expression of two genes in a cell selection</h2>' +
-        '<p></p>'
+      html: '<h2>Plotting Gene Expression of two Genes</h2>' +
+        '<p>This tab allows you to plot the gene expression of two different genes for all cells.</p>'
+        ,
+      constrain: true,
+      closable: true,
+      resizable: false
+    }).show();
+}
+/**
+ * Generates an ESP window if the data provided on the ESP tab is valid
+ */
+actionPanelUIcontroller.prototype.generateESPwindow = function(){
+  var form = Ext.getCmp("formPanelESP").getForm();
+
+  var cellSelection = form.findField("cellSelectionESP").getValue();
+  var geneA = form.findField("geneA").getValue();
+  var geneB = form.findField("geneB").getValue();
+
+  if(geneA.length === 0){
+    Ext.MessageBox.alert('Warning',"Please provide a gene in the Gene A field.");
+  }
+  else if(geneB.length === 0){
+    Ext.MessageBox.alert('Warning',"Please provide a gene in the Gene B field.");
+  }
+  else{
+    var len;
+    (new dataController()).getCellOrder(function(data){
+      len = data.length;
+      (new dataController()).getExpressionValuesSparseByCellIndexUnpacked(Array(geneA,geneB),0,len,false, function(data){
+  
+        if(data.DimNames2.length < 2){
+          Ext.MessageBox.alert("Error", "One or more of the gene names provided could not be found in the provided dataset.");
+          return;
+        }
+        var geneMatrix = data.getFullMatrix();
+  
+        var scatterData = {
+          data: geneMatrix.array,
+          xLabel: geneMatrix.colnames[0],
+          yLabel: geneMatrix.colnames[1],
+          title: "Gene expression comparison"
+        };
+  
+        (new graphViewer(scatterData, "scatter")).render();
+      })
+    })
+  }
+}
+
+/**
+ * Generates an MDBG window if the data provided on the MDBG tab is valid
+ */
+actionPanelUIcontroller.prototype.generateMDBGwindow = function(){
+  var form = Ext.getCmp("formPanelMDBG").getForm();
+
+  var metaDataReference = form.findField("metaDataSelectionA").getValue();
+  var metaDataComparison = form.findField("metaDataSelectionB").getValue();
+
+  if(!(metaDataReference)){
+    Ext.MessageBox.alert("Warning","Please specify your reference meta data clustering");
+    return;
+  }
+  if(!(metaDataComparison)){
+    Ext.MessageBox.alert("Warning","Please specify your comparison meta data clustering");
+    return;
+  }
+  var dataCtrl = new dataController();
+  var barGraphData = {}
+  dataCtrl.getCellMetadata(function(data){
+
+    barGraphData.data = [];
+    for(var i = 0; i < data[metaDataReference].palette.length; i++){
+      var nextArray = [];
+      for(var j = 0; j < data[metaDataComparison].palette.length; j++){
+        nextArray.push(0);
+      }
+      barGraphData.data.push(nextArray);
+    }
+    for(var cellId in data[metaDataReference].data){barGraphData.data[data[metaDataReference].data[cellId]][data[metaDataComparison].data[cellId]]++}
+    barGraphData.compPalette = data[metaDataComparison].palette;
+    barGraphData.refPalette = data[metaDataReference].palette;
+    barGraphData.title = "Cluster comparison bar graph";
+    barGraphData.xLabel = data[metaDataReference].displayname;
+    barGraphData.yLabel = data[metaDataComparison].displayname + " cells % Membership";
+    (new graphViewer(barGraphData, "bar")).render();
+  });
+
+
+}
+/**
+ * Show help dialog for Meda Data Bar Graph
+ */
+actionPanelUIcontroller.prototype.showMDBGhelpDialog = function(){
+  Ext.create('Ext.window.Window', {
+      height: 300,
+      width: 400,
+      title: 'Help: Expression Scatter Plots',
+      scrollable: true,
+      bodyPadding: 10,
+      html: '<h2>Display Differential Meta Data groupings</h2>' +
+        '<p>To display differential Metadata Bar Graph select a "Reference Meta Data Clusters" from the first drop down menu and a "Examined Meta Data Clusters" from the second menu. Then click "Make Plot". The reference meta data will appear along the x axis with numeric identifiers, while the color Examined metadata will appear along the Y axis with their clusters identified by color.</p>'
         ,
       constrain: true,
       closable: true,
@@ -343,48 +497,6 @@ actionPanelUIcontroller.prototype.showESPhelpDialog = function (){
     }).show();
 }
 
-/**
- * Generates an ESP window if the data provided on the ESP tab is valid 
- */
-actionPanelUIcontroller.prototype.generateESPwindow = function(){
-  var form = Ext.getCmp("formPanelESP").getForm();
-  
-  var cellSelection = form.findField("cellSelectionESP").getValue();
-  var geneA = form.findField("geneA").getValue();
-  var geneB = form.findField("geneB").getValue();
-  
-  if(geneA.length === 0){
-    Ext.MessageBox.alert('Warning',"Please provide a gene in the Gene A field.");
-  }
-  else if(geneB.length === 0){
-    Ext.MessageBox.alert('Warning',"Please provide a gene in the Gene B field.");
-  }
-  //else if(cellSelection === null){
-  //  Ext.MessageBox.alert('Warning',"No Cell Selection Provided")
-  //}
-  else{
-    (new dataController()).getExpressionValuesSparseByCellIndexUnpacked(Array(geneA,geneB),0,3000,false, function(data){
-      
-      if(data.DimNames2.length < 2){
-        Ext.MessageBox.alert("Error", "One or more of the gene names provided could not be found in the provided dataset.");
-        return;
-      }
-      
-      var geneMatrix = data.getFullMatrix();
-      Ext.create("Ext.window.Window", {
-        resizeable: false,
-        modal:true,
-        items:[
-          {
-            html:'<canvas id="scatterChart" height="500" width="500"></canvas>'
-          }
-        ],
-      }).show();
-      
-      
-    })
-  }
-}
 /**
  * Click handler for stop button of DE analysis
  * @private
@@ -437,7 +549,7 @@ actionPanelUIcontroller.prototype.runAnalysisClickHandler = function() {
 
               // Make a deResult set for saving the results
               // and save metadata related to this de result
-              
+
               var end = new Date();
               var resultSet = new deResultSet();
               resultSet.setResults(results);
@@ -532,121 +644,23 @@ actionPanelUIcontroller.prototype.syncCellSelectionStore = function() {
     }// for
 }
 
+actionPanelUIcontroller.prototype.generateMetaDataStore = function(){
 
-function graphViewer(data, canvas){
-      this.minX = 0;
-      this.minY = 0;
-      this.maxX = 0;
-      this.maxY = 0;
-      this.dataPoints = data;
-      for(var i = 0; i < geneMatrix.array.length; i++){
-        this.minX = Math.min(geneMatrix.array[i][0],minX);
-        this.minY = Math.min(geneMatrix.array[i][1],minY);
-        this.maxX = Math.max(geneMatrix.array[i][0],maxX);
-        this.maxY = Math.max(geneMatrix.array[i][1],maxY);
-      }
-      this.targetCanvas = canvas;
-}
-graphViewer.prototype.drawScatterePlot = function(){
-  
-  var choices = {
-    hasXscale: true,
-    hasYscale: true,
-    hasAxisLabels: true
-  }
-  this.measureComponents("14px Arial","28px Arial",500,500,2,5,{
-    
+  var mdStore = Ext.create('Ext.data.Store',{
+    storeId: 'metaDataSelectionStoreForDBG',
+    fields: [
+      {name:'internalName', type:'string'},
+      {name:'displayName', type:'string'}
+    ],
+    autoLoad: true
+  })
+  var dataCntr = new dataController();
+  dataCntr.getCellMetadata(function(data) {
+    for(var key in data){
+      mdStore.add({internalName: key, displayName: data[key].displayname});
+    }
   });
-  
-  
-}
-graphViewer.prototype.measureComponents = function(axisFont, titleFont, width, height, padding, margin, choices){
-  var boundings = {}
-  var ctx = this.targetCanvas.getContext('2d');
-  
-  var axisHeight = pagHelpers.getTextHeight(axisFont);
-  boundings.xGutter = (choices.hasXscale? axisHeight + padding : 0) + (choices.hasAxisLabels? axisHeight + padding : 0) + margin;
-  boundings.yGutter = margin + (choices.hasAxisLabels? axisHeight + padding : 0);
-  if(choices.hasYscale){
-    var step = (this.maxY-this.minY)/5
-    ctx.font = axisFont;
-    var maxLength = 0;
-    for(var x = minY; x < this.maxY; x += step){maxLength = Math.max(ctx.measureText(x.toFixed(2)),maxLength)}
-    boundings.yGutter += maxLength + padding;
-  }
-  
-  var titleHeight = pagHelpers.getTextHeight(titleFont);
-  boundings.topGutter = margin + (choices.hasTitle? titleHeight + padding: 0)
-  boundings.rightGutter = margin;
-  
-  boundings.plotTL = {
-    x: yGutter + graphViewer.linethickness,
-    y: topGutter
-  }
-  boundings.plotBR = {
-    x: width - rightGutter,
-    y: height - xGutter - graphViewer.linethickness
-  }
-  boundings.plotDim = {
-    width: width - rightGutter - yGutter - graphViewer.linethickness,
-    height: height - topGutter - xGutter - graphViewer.linethickness
-  }
-  boundings.canvasDim = {
-    height: height,
-    width: width
-  }
-  
-  return boundings;
 }
 
-graphViewer.prototype.drawAxis = function(options, boundings, yLabel, xLabel, padding, margin){
-  var ctx = this.targetCanvas.getContext("2d");
-  
-  
-  if(choices.hasYscale){
-    ctx.textAlign = "right";
-    ctx.textBaseline = "Middle";
-    var scaleSpace = plotDim.height/5;
-    var step = (this.maxY-this.minY)/5
-    for(var i = 0; i < 6; i++){
-      ctx.fillStyle = "#000000";
-      ctx.fillText((minY+(i*step)).toFixed(2) + "", (plotTL.x - graphViewer.lineThickness - padding), plotBR.y - scaleSpace * i);
-      ctx.fillStyle = "#D3D3D3";
-      ctx.fillRect(graphTL.x, plotBR.y - scaleSpace * i, plotDim.width, graphViewer.lineThickness);
-    }
-  }
-  
-  if(choices.hasXscale){
-    ctx.textAlign = "center";
-    ctx.textBaseline = "Hanging";
-    var scaleSpace = plotDim.width/5;
-    var step = (this.maxX-this.minX)/5
-    for(var i = 0; i < 6; i++){
-      ctx.fillStyle = "#000000";
-      ctx.fillText((minY+(i*step)).toFixed(2) + "", (plotTL.x - graphViewer.lineThickness - padding), plotBR.y - scaleSpace * i);
-      ctx.fillStyle = "#D3D3D3";
-      ctx.fillRect(graphTL.x + scaleSpace * i, plotBR.y, graphViewer.lineThickness, plotDim.height);
-    }
-  }
-  
-  if(choices.hasAxisLabels){
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "Bottom";
-    ctx.fillText(xLabel, (plotBR.x - plotTL.x)/2, canvasDim.height - margin);
-
-    ctx.textBaseline = "Hanging";
-    targetContext.rotate(-Math.PI/2);
-    ctx.fillText(yLabel,-(plotBR.y - plotTL.y)/2, margin)
-    targetContext.rotate(Math.PI/2);
-    
-  }
-  
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(boundings.plotTL.x, boundings.plotTL.y, -1 * graphViewer.lineThickness, plotDim.height + graphViewer.lineThickness);
-  ctx.fillRect(boundings.plotTL.x,boundings.plotBR.y, plotDim.width, graphViewer.lineThickness);
-  
-}
-graphViewer.prototype.lineThickness = 1;
 
 

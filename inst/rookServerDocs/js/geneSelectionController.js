@@ -12,24 +12,28 @@
  */
 function geneSelectionController() {
     if (typeof geneSelectionController.instance === 'object') {
-	return geneSelectionController.instance;
-    };
+	    return geneSelectionController.instance;
+    }
 
     this.selections = new Object();
-
+    this.idNum = 0;
     geneSelectionController.instance = this;
-};
+}
 
 /**
  * Set a gene selection
  * @param {string} selectionName The gene selection name
  * @param {Array[]} genes The gene identifers for this selection
  */
-geneSelectionController.prototype.setSelection = function(selectionName, genes, displayName) {
+geneSelectionController.prototype.setSelection = function(genes, displayName, selectionName) {
     if ( typeof displayName === 'undefined') {
-	displayName = selectionName;
+	    displayName = selectionName;
     }
-
+    if(typeof selectionName === "undefined"){
+      selectionName = this.idNum + "_" + (new Date()).getTime();
+      this.idNum++;
+    }
+    
     this.selections[selectionName] = ({
 	'name': selectionName,
 	'genes': genes,
@@ -82,6 +86,20 @@ geneSelectionController.prototype.clearSelection = function(selectionname) {
 };
 
 /**
+ * Checks to see if a cell selection contains a given displayName
+ * @param {string} dispName the name we are looking for
+ * @returns {boolean} whether or not dispName exists among all other displayNames
+ */
+geneSelectionController.prototype.displayNameExists = function(dispName){
+  for(var sel in this.selections){
+    if(this.selections[sel].displayName === dispName){
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Get the names of the currently available selections
  */
 geneSelectionController.prototype.getAvailableSelections = function() {
@@ -106,18 +124,9 @@ geneSelectionController.prototype.deleteSelection = function(selectionName) {
 /**
  * Duplicate an existing selection
  */
-geneSelectionController.prototype.duplicateSelection = function(selectionName,
-								newSelectionName,
-								newSelectionDisplayName) {
+geneSelectionController.prototype.duplicateSelection = function(selectionName, newSelectionDisplayName) {
     var oldSelection = this.selections[selectionName];
-    var sel = {};
-    sel.name = newSelectionName;
-    sel.displayName = newSelectionDisplayName;
-
-    sel.genes = JSON.parse(JSON.stringify(oldSelection.genes));
-
-    this.selections[newSelectionName] = sel;
-    this.raiseSelectionChangedEvent();
+    this.setSelection(JSON.parse(JSON.stringify(oldSelection.genes)),newSelectionDisplayName);
 }
 
 /**
@@ -131,33 +140,24 @@ geneSelectionController.prototype.renameSelection = function(selectionName, newS
 /**
  * Generate a new gene selection from two existing gene selections
  */
-geneSelectionController.prototype.mergeSelectionsIntoNew = function(selections, newSelectionName, newSelectionDisplayName)  {
+geneSelectionController.prototype.mergeSelectionsIntoNew = function(selections, newSelectionDisplayName)  {
 
     var geneSelCntrl = this;
-    var sel = {};
-    sel.name = newSelectionName;
-    sel.displayName = newSelectionDisplayName;
-
     var genes = {};
     selections.forEach(function(selection){
       geneSelCntrl.selections[selection].genes.forEach(function(gene){
         genes[gene] = true;
       })
     });
-    sel.genes = Object.keys(genes);
     
-    geneSelCntrl.selections[newSelectionName] = sel;
-    geneSelCntrl.raiseSelectionChangedEvent();
+    geneSelCntrl.setSelection(Object.keys(genes), newSelectionDisplayName);
 }
 
 /**
  * Genereate a new gene selection by intersecting two gene selections
  */
-geneSelectionController.prototype.intersectSelectionsIntoNew = function(selections, newSelectionName, newSelectionDisplayName){
+geneSelectionController.prototype.intersectSelectionsIntoNew = function(selections, newSelectionDisplayName){
     var geneSelCtrl = this;
-    var sel = {};
-    sel.name = newSelectionName;
-    sel.displayName = newSelectionDisplayName;
 
     var genes = {};
     geneSelCtrl.selections[selections[0]].genes.forEach(function(gene){
@@ -170,14 +170,11 @@ geneSelectionController.prototype.intersectSelectionsIntoNew = function(selectio
         }
       });
     }
-    sel.genes = [];
-    
+    var puregenes = [];
     for(var gene in genes){
       if(genes[gene] === selections.length){
-        sel.genes.push(gene);
+        puregenes.push(gene);
       }
     }
-    
-    this.selections[newSelectionName] = sel;
-    this.raiseSelectionChangedEvent();
+    this.setSelection(puregenes, newSelectionDisplayName)
 }

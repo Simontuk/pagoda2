@@ -65,7 +65,7 @@ function embeddingViewerScatterCanvas() {
     this.yScaleDomainMax;
     this.yScaleRangeMin;
     this.yScaleRangeMax;
-
+    this.highlight = "box";
     // Generates the html structure required for the viewer
     this.generateStructure();
 
@@ -88,40 +88,13 @@ embeddingViewerScatterCanvas.prototype.getMainCanvasElement = function() {
  * and set the cell selection
  */
 embeddingViewerScatterCanvas.prototype.generateDragSelection =
-  function(dragStartX, dragStartY, dragEndX, dragEndY) {
-	if (dragStartX > dragEndX) {
-	    var t = dragEndX;
-	    dragEndX =  dragStartX;
-	    dragStartX = t;
-	}
-	if (dragStartY > dragEndY) {
-	    var t = dragEndY;
-	    dragEndY = dragStartY;
-	    dragStartY = t;
-	}
-
+  function(verticies) {
 
 	var thisViewer = this;
 	var embViewer = new embeddingViewer();
 	var config = embViewer.getConfig();
 
-	// Reversed scales
-	var xScaleRev = pagHelpers.linearScaleGenerator(
-	    thisViewer.xScaleRangeMin,
-	    thisViewer.xScaleRangeMax,
-	    thisViewer.xScaleDomainMin,
-	    thisViewer.xScaleDomainMax);
-
-	var yScaleRev = pagHelpers.linearScaleGenerator(
-	    thisViewer.yScaleRangeMin,
-	    thisViewer.yScaleRangeMax,
-	    thisViewer.yScaleDomainMin,
-	    thisViewer.yScaleDomainMax);
-
-	var x1 = xScaleRev(dragStartX);
-	var y1 = yScaleRev(dragStartY);
-	var x2 = xScaleRev(dragEndX);
-	var y2 = yScaleRev(dragEndY);
+	
 
 	var dataCntr = new dataController();
 	var type = config.type;
@@ -131,8 +104,6 @@ embeddingViewerScatterCanvas.prototype.generateDragSelection =
 
 	dataCntr.getEmbedding(type, embeddingType, function(data) {
 	    var plotData = pagHelpers.jsonSerialisedToArrayOfArrays(data);
-
-
 	    // Make the xscale
 	    thisViewer.xScaleDomainMin = +Infinity;
 	    thisViewer.xScaleDomainMax = -Infinity;
@@ -156,6 +127,20 @@ embeddingViewerScatterCanvas.prototype.generateDragSelection =
 	    }
 	    thisViewer.yScaleRangeMin = (size * (1 - thisViewer.rangeScaleFactor));
 	    thisViewer.yScaleRangeMax = size * thisViewer.rangeScaleFactor;
+	    
+	    // Reversed scales
+	var xScaleRev = pagHelpers.linearScaleGenerator(
+	    thisViewer.xScaleRangeMin,
+	    thisViewer.xScaleRangeMax,
+	    thisViewer.xScaleDomainMin,
+	    thisViewer.xScaleDomainMax);
+
+	var yScaleRev = pagHelpers.linearScaleGenerator(
+	    thisViewer.yScaleRangeMin,
+	    thisViewer.yScaleRangeMax,
+	    thisViewer.yScaleDomainMin,
+	    thisViewer.yScaleDomainMax);
+
 	    var yScale = pagHelpers.linearScaleGenerator(thisViewer.yScaleDomainMin,
 							 thisViewer.yScaleDomainMax,
 							 thisViewer.yScaleRangeMin,
@@ -172,14 +157,11 @@ embeddingViewerScatterCanvas.prototype.generateDragSelection =
       // quick highlight
 	    for (var i = 0; i < plotData.length; i++) {
     		var point = plotData[i];
-
-    		if ( point[1] > x1 && point[1] < x2 && point[2] > y1 && point[2] < y2) {
+        var xs = xScale(point[1]);
+    		var ys = yScale(point[2]);
+    		if(pointInPolygon([xs,ys],verticies)){
     		    // Point in selection
     		    cellsForSelection.push(point[0]);
-
-    		    var xs = xScale(point[1]);
-    		    var ys = yScale(point[2]);
-
     		    ctx.beginPath();
     		    ctx.arc(xs, ys, pointsize, 0, 2 * Math.PI, false);
     		    ctx.stroke();
@@ -187,7 +169,7 @@ embeddingViewerScatterCanvas.prototype.generateDragSelection =
 	    } // for
 
 	    var cellSelCntr = new cellSelectionController();
-	    cellSelCntr.setSelection('embSelection', cellsForSelection, 'Embedding Selection', new Object(),'#ff0000');
+	    cellSelCntr.setSelection( cellsForSelection, 'Embedding Selection', new Object(),'#ff0000', 'embSelection');
 
       // TODO: Make this optional
 
@@ -209,7 +191,7 @@ embeddingViewerScatterCanvas.prototype.generateDragSelection =
  * Highlight cells by selection name
  * @param selectionName the name of the cell selection as registered int he cellSelectionController
  */
-embeddingViewerScatterCanvas.prototype.highlightSelectionByName = function(selectionName) {
+embeddingViewerScatterCanvas.prototype.highlightSelectionByName = function(selectionName, hasLabels) {
   var cellSelCntr = new cellSelectionController();
   var cells = cellSelCntr.getSelection(selectionName);
 
@@ -260,7 +242,15 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionByName = function(selec
 	    var ctx = document.getElementById('embedding-canvas-overlay').getContext('2d');
 	    ctx.save();
 	    ctx.clearRect(0,0,5000,5000);
+	    thisViewer.hasLabels = hasLabels;
 	    ctx.strokeStyle = cellSelCntr.getColor(selectionName);
+	    
+	    var clusterCenter = {
+	      x: 0,
+	      y: 0,
+	      total: 0,
+	    }
+	    
 	    for (var i = 0; i < plotData.length; i++) {
     		var point = plotData[i];
     		if ( cells.indexOf(point[0]) > -1 ) {
@@ -268,22 +258,33 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionByName = function(selec
     		    var ys = yScale(point[2]);
 
     		    ctx.beginPath();
+    		    clusterCenter.x += xs;
+    		    clusterCenter.y += ys;
+    		    clusterCenter.total++;
     		    ctx.arc(xs, ys, pointsize, 0, 2 * Math.PI, false);
     		    ctx.stroke();
     		}
 	    } // for
+	    if(clusterCenter.total > 0){
+	      ctx.fillStyle = "black";
+	      ctx.font = "bold " + ctx.font;
+	      ctx.textAlign = "center";
+	      ctx.textBaseline = "middle";
+	      ctx.fillText(cellSelCntr.getSelectionDisplayName(selectionName),clusterCenter.x/clusterCenter.total, clusterCenter.y)
+	    }
 	    ctx.restore();
 
   });
 
 }
 
-embeddingViewerScatterCanvas.prototype.highlightSelectionsByNames = function(selectionNames) {
+embeddingViewerScatterCanvas.prototype.highlightSelectionsByNames = function(selectionNames, hasLabels) {
   
   var cellSelCntr = new cellSelectionController();
   var embViewer = new embeddingViewer();
   var thisViewer = this;
-
+  thisViewer.hasLabels = hasLabels;
+  
   var config =  embViewer.getConfig();
   var dataCntr = new dataController();
   var type = config.type;
@@ -295,9 +296,7 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionsByNames = function(sel
   ctx.clearRect(0,0,5000,5000);
   
   dataCntr.getEmbedding(type, embeddingType, function(data){
-    selectionNames.forEach(function(selectionName){
-
-      var cells = cellSelCntr.getSelection(selectionName);
+    
       var plotData = pagHelpers.jsonSerialisedToArrayOfArrays(data);
       
 	    // Make the xscale
@@ -330,24 +329,50 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionsByNames = function(sel
 
 
 	    var pointsize = embViewer.getCurrentPointSize();
+	    
+   var clusterLabels = [];
+	 selectionNames.forEach(function(selectionName){
 
-	    
+      var cells = cellSelCntr.getSelection(selectionName);
 	    ctx.save();
-	    
 	    ctx.strokeStyle = cellSelCntr.getColor(selectionName);
+	    var selData = {
+	      x: 0,
+	      y: 0,
+	      total: 0
+	    }	
 	    for (var i = 0; i < plotData.length; i++) {
     		var point = plotData[i];
     		if ( cells.indexOf(point[0]) > -1 ) {
     		    var xs = xScale(point[1]);
     		    var ys = yScale(point[2]);
-
+            selData.x += xs;
+            selData.y += ys;
+            selData.total++;
     		    ctx.beginPath();
     		    ctx.arc(xs, ys, pointsize, 0, 2 * Math.PI, false);
     		    ctx.stroke();
     		}
 	    } // for
+	    if(selData.total !== 0){
+	      clusterLabels.push({x: selData.x/selData.total, y: selData.y/selData.total, name: cellSelCntr.getSelectionDisplayName(selectionName)})
+	    }
 	    ctx.restore();
     });
+    
+    //adds label if it exists
+    if(hasLabels){
+      ctx.save();
+      ctx.fillStyle = "black";
+      var fontPieces = ctx.font.split(/\s/);
+      ctx.font = "bold " + Math.floor(document.getElementById('embedding-canvas-overlay').height/25) + "px " + fontPieces[1];
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for(var i = 0; i < clusterLabels.length; i++){
+        ctx.fillText(clusterLabels[i].name, clusterLabels[i].x, clusterLabels[i].y);
+      }
+      ctx.restore();
+    }
   });
 }
 
@@ -364,11 +389,8 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionsByNamesOntoCanvas = fu
   var pointsize = embViewer.getCurrentPointSize()*size/this.size;
   var ctx = overlayCanvas.getContext('2d');
   ctx.clearRect(0,0,5000,5000);
-  
   dataCntr.getEmbedding(type, embeddingType, function(data){
-    selectionNames.forEach(function(selectionName){
 
-      var cells = cellSelCntr.getSelection(selectionName);
       var plotData = pagHelpers.jsonSerialisedToArrayOfArrays(data);
       
 	    // Make the xscale
@@ -384,7 +406,6 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionsByNamesOntoCanvas = fu
 							 thisViewer.xScaleDomainMax,
 							 thisViewer.xScaleRangeMin,
 							 thisViewer.xScaleRangeMax);
-
 	    // Make the y scale
 	    thisViewer.yScaleDomainMin = +Infinity;
 	    thisViewer.yScaleDomainMax = -Infinity;
@@ -400,21 +421,45 @@ embeddingViewerScatterCanvas.prototype.highlightSelectionsByNamesOntoCanvas = fu
 							 thisViewer.yScaleRangeMax);
 
 	    ctx.save();
-	    
+    var clusterLabels = [];
+    selectionNames.forEach(function(selectionName){
+      var cells = cellSelCntr.getSelection(selectionName);	    
 	    ctx.strokeStyle = cellSelCntr.getColor(selectionName);
+	    var selData = {
+	      x: 0,
+	      y: 0,
+	      total: 0
+	    }
 	    for (var i = 0; i < plotData.length; i++) {
     		var point = plotData[i];
     		if ( cells.indexOf(point[0]) > -1 ) {
     		    var xs = xScale(point[1]);
     		    var ys = yScale(point[2]);
-
+            selData.x += xs;
+            selData.y += ys;
+            selData.total++;
     		    ctx.beginPath();
     		    ctx.arc(xs, ys, pointsize, 0, 2 * Math.PI, false);
     		    ctx.stroke();
     		}
 	    } // for
+	    if(selData.total !== 0){
+	      clusterLabels.push({x: selData.x/selData.total, y: selData.y/selData.total, name: cellSelCntr.getSelectionDisplayName(selectionName)})
+	    }
 	    ctx.restore();
     });
+    if(thisViewer.hasLabels){
+      ctx.save();
+      ctx.fillStyle = "black";
+      var fontPieces = ctx.font.split(/\s/);
+      ctx.font = "bold " + Math.floor(overlayCanvas.height/25) + "px " + fontPieces[1];
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for(var i = 0; i < clusterLabels.length; i++){
+        ctx.fillText(clusterLabels[i].name, clusterLabels[i].x, clusterLabels[i].y);
+      }
+      ctx.restore();
+    }
   });
 
 }
@@ -457,61 +502,134 @@ embeddingViewerScatterCanvas.prototype.setupOverlayEvents = function(overlayCanv
 
     var lastCursorPositionX = 0;
     var lastCursorPositionY = 0;
-
-    overlayCanvasElement.addEventListener('mouseover', function(e) {
-    	document.body.style.cursor = 'crosshair';
-    });
-
+    var polygonVerts = [];
+    thisViewer.stopRadius = 7;
+    
     overlayCanvasElement.addEventListener('mousedown', function(e) {
       e.preventDefault();
-
-    	dragStartX = e.offsetX;
-    	dragStartY = e.offsetY;
-
-    	thisViewer.dragging = true;
+      if(thisViewer.highlight === "box"){
+     	  dragStartX = e.offsetX;
+    	  dragStartY = e.offsetY;
+    	  thisViewer.dragging = true;
+      }
+      
     });
 
     overlayCanvasElement.addEventListener('mouseup', function(e) {
-
-    	if (thisViewer.dragging) {
-    	    // Dragging complete
-    	    var dragEndX = e.offsetX;
-    	    var dragEndY = e.offsetY;
-
-    	    thisViewer.generateDragSelection(dragStartX, dragStartY, dragEndX, dragEndY);
-    	}
-    	thisViewer.dragging = false;
+      
+      if(thisViewer.highlight === "box"){
+      	if (thisViewer.dragging) {
+      	    // Dragging complete
+      	    var dragEndX = e.offsetX;
+      	    var dragEndY = e.offsetY;
+            var verticies = [[dragStartX, dragStartY],[dragStartX,dragEndY],[dragEndX, dragEndY],[dragEndX,dragStartY]];
+      	    thisViewer.generateDragSelection(verticies);
+      	}
+      	thisViewer.dragging = false;
+      }
+    });
+    
+    overlayCanvasElement.addEventListener('click', function(e){
+      
+      var xPos = e.offsetX;
+      var yPos = e.offsetY;
+      if(thisViewer.highlight === "poly"){
+        if(thisViewer.dragging){
+          
+          if(Math.sqrt(Math.pow(xPos - polygonVerts[0][0], 2) + Math.pow(yPos - polygonVerts[0][1], 2)) < thisViewer.stopRadius){
+            ctx.clearRect(0,0,4000,4000);
+            thisViewer.generateDragSelection(polygonVerts);
+            polygonVerts = [];
+            thisViewer.dragging = false;
+            document.body.style.cursor = 'crosshair'
+          }
+          else{
+            polygonVerts.push([xPos,yPos]);
+          }
+        }
+        else{
+          thisViewer.dragging = true;
+          polygonVerts.push([xPos,yPos]);
+        }
+      }
+      
+    });
+    
+    overlayCanvasElement.addEventListener('mouseover', function(e) {
+      var xPos = e.offsetX;
+      var yPos = e.offsetY;
+    	document.body.style.cursor = 'crosshair';
+    	
     });
 
     overlayCanvasElement.addEventListener('mousemove', function(e) {
-  	var dragEndX =  e.offsetX;
-  	var dragEndY = e.offsetY;
+  	var xPos =  e.offsetX;
+  	var yPos = e.offsetY;
 
-    lastCursorPositionX = dragEndX;
-    lastCursorPositionY = dragEndY;
-
-	if (thisViewer.dragging) {
-	    // TODO: clear the correct coordinates
-	    ctx.clearRect(0,0,4000,4000);
-	    ctx.save();
-	    ctx.setLineDash([10,10]);
-	    ctx.strokeStyle = 'rgba(255,0,0,1)';
-	    ctx.lineWidth = 2;
-	    ctx.strokeRect(dragStartX, dragStartY, dragEndX - dragStartX, dragEndY - dragStartY);
-	    ctx.restore();
-	}
+    if(thisViewer.highlight === "poly"){
+  	  if (thisViewer.dragging) {
+  	    ctx.clearRect(0,0,4000,4000);
+  	    ctx.save();
+  	    ctx.setLineDash([10,10]);
+  	    ctx.strokeStyle = 'rgba(255,0,0,1)';
+  	    ctx.lineWidth = 2;
+  	    ctx.beginPath();
+  	    ctx.moveTo(polygonVerts[0][0],polygonVerts[0][1]);
+  	    for(var i = 1; i < polygonVerts.length; i++){
+  	      var next = polygonVerts[i];
+  	      ctx.lineTo(next[0],next[1]);
+  	    }
+  	    ctx.lineTo(xPos, yPos);
+  	    ctx.stroke();
+  	    ctx.closePath();
+  	    
+  	    ctx.beginPath()
+  	    ctx.arc(polygonVerts[0][0],polygonVerts[0][1], thisViewer.stopRadius, 0, 2 * Math.PI, false);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+        ctx.closePath();
+  	    
+  	    ctx.restore();
+  	  }
+  	  if(thisViewer.dragging && Math.sqrt(Math.pow(xPos - polygonVerts[0][0], 2) + Math.pow(yPos - polygonVerts[0][1], 2)) < thisViewer.stopRadius){
+      	  document.body.style.cursor = 'pointer';
+      }
+      else{
+      	  document.body.style.cursor = 'crosshair';
+      }
+    } else if(thisViewer.highlight === "box"){
+      var dragEndX =  e.offsetX;
+      var dragEndY = e.offsetY;
+    
+      lastCursorPositionX = dragEndX;
+      lastCursorPositionY = dragEndY;
+    
+    	if (thisViewer.dragging) {
+    	    ctx.clearRect(0,0,4000,4000);
+    	    ctx.save();
+    	    ctx.setLineDash([10,10]);
+    	    ctx.strokeStyle = 'rgba(255,0,0,1)';
+    	    ctx.lineWidth = 2;
+    	    ctx.strokeRect(dragStartX, dragStartY, dragEndX - dragStartX, dragEndY - dragStartY);
+    	    ctx.restore();
+    	}
+    }
 
     });
 
     overlayCanvasElement.addEventListener('mouseleave', function(e) {
-
-        	if (thisViewer.dragging) {
-        	    ctx.clearRect(0,0,4000,4000);
-        	    thisViewer.generateDragSelection(dragStartX, dragStartY, lastCursorPositionX, lastCursorPositionY);
-        	}
-        	thisViewer.dragging = false;
+        	if(thisViewer.dragging){
+        	  thisViewer.dragging = false;
+            polygonVerts = [];
+           ctx.clearRect(0,0,4000,4000);
+           if(thisViewer.highlight === "box"){
+             var verticies = [[dragStartX, dragStartY],[dragStartX,lastCursorPositionY],[lastCursorPositionX, lastCursorPositionY],[lastCursorPositionX,dragStartY]];
+             thisViewer.generateDragSelection(verticies);
+           }
+         	}
         	document.body.style.cursor = 'default';
     });
+    
 
 }
 
@@ -776,7 +894,6 @@ embeddingViewerScatterCanvas.prototype.drawToCanvas = function(embCanvas, dimens
 	    }
 
 	    // Get 2d context and plot
-	    console.log(embCanvas);
 	    var ctx = embCanvas.getContext('2d');
 	    ctx.clearRect(0,0,5000,5000);
 

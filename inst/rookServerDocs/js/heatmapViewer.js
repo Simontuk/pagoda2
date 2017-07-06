@@ -294,6 +294,7 @@ heatmapViewer.prototype.setupOverlays = function() {
 
     var heatmapAreaOverlay = $('#heatmap-area-overlay')[0];
 
+    var thisViewer = this;
     this.primaryMouseButtonDown = false;
     this.dragging = false;
     this.dragStartX = null;
@@ -304,7 +305,7 @@ heatmapViewer.prototype.setupOverlays = function() {
 
       var heatView = new heatmapViewer();
       var drawConsts = heatView.getDrawConstants();
-      if (e.offsetX > drawConsts.left &  e.offsetX < drawConsts.left + drawConsts.width) {
+      if (!(typeof thisViewer.displayGenes === 'undefined' || thisViewer.displayGenes.length === 0) && e.offsetX > drawConsts.left &  e.offsetX < drawConsts.left + drawConsts.width) {
         heatView.primaryMouseButtonDown = true;
         heatView.dragStartX =  e.offsetX;
       }
@@ -313,9 +314,8 @@ heatmapViewer.prototype.setupOverlays = function() {
 
     heatmapAreaOverlay.addEventListener('mouseup', function(e) {
       var heatView = new heatmapViewer();
-      if(heatView.primaryMouseButtonDown){
+      if(heatView.primaryMouseButtonDown && !(typeof thisViewer.displayGenes === 'undefined' || thisViewer.displayGenes.length === 0)){
       heatView.primaryMouseButtonDown = false;
-      
       if(heatView.dragging) {
         // End of drag
         heatView.dragging = false;
@@ -352,7 +352,7 @@ heatmapViewer.prototype.setupOverlays = function() {
         var cellsForSelection = dendV.getCurrentDisplayCells().slice(startIndex, endIndex);
 
 	      var cellSelCntr = new cellSelectionController();
-	      cellSelCntr.setSelection('heatmapSelection', cellsForSelection, 'Heatmap Selection', new Object(), "#FF0000");//TODO green or blue?
+	      cellSelCntr.setSelection( cellsForSelection, 'Heatmap Selection', new Object(), "#FF0000",'heatmapSelection');
 
             // Highlight on heatmap
             var heatV = new heatmapViewer();
@@ -788,12 +788,12 @@ heatmapViewer.prototype.drawHeatmap = function() {
 	// We also want to maintain a gene selection showing the
 	// current plotted genes
 	var geneSelCntr = new geneSelectionController();
-	geneSelCntr.setSelection('heatmapDisplayGenes', [], 'Current Heatmap Genes');
+	geneSelCntr.setSelection( [], 'Current Heatmap Genes', 'heatmapDisplayGenes');
     } else {
 
 	// Make a gene selection with the currently shown genes
 	var geneSelCntr = new geneSelectionController();
-	geneSelCntr.setSelection('heatmapDisplayGenes', this.displayGenes, 'Current Heatmap Genes');
+	geneSelCntr.setSelection( this.displayGenes, 'Current Heatmap Genes','heatmapDisplayGenes');
 	this.doDrawHeatmap();
     }
 }
@@ -891,10 +891,9 @@ heatmapViewer.prototype.highlightCellSelectionByName = function(selectionName) {
   // Get the cells in the cell selection to highlight
   var cellSelCntr = new cellSelectionController();
   var cellSelection = cellSelCntr.getSelection(selectionName);
-
   // Get the cell order
   var dataCntr = new dataController();
-  dataCntr.getCellOrder(function(cellorder) {
+  dataCntr.getCellOrderHash(function(cellorderHash) {
     // Currently displayed cells
     var cellRange = dendV.getCurrentDisplayCellsIndexes();
     var ncells = cellRange[1] - cellRange[0];
@@ -920,7 +919,7 @@ heatmapViewer.prototype.highlightCellSelectionByName = function(selectionName) {
 
     // Draw vertical lines for selected cells
     for (var i = 0; i < n; i++) {
-      var cellIndex = cellorder.indexOf(cellSelection[i]);
+      var cellIndex = cellorderHash[cellSelection[i]];
 
       // Cell is among currently displayed ones
       if (cellIndex < cellRange[1] && cellIndex > cellRange[0]) {

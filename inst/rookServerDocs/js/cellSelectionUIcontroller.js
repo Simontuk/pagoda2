@@ -39,7 +39,7 @@ cellSelectionUIcontroller.prototype.syncCellSelectionStore = function() {
 	var selCount =  cellSelCntr.getSelection(selName).length;
 	var selDisplayName =  cellSelCntr.getSelectionDisplayName(selName);
 	var selColor = cellSelCntr.getColor(selName);
-  
+
 	store.add({selectionname: selName, displayname: selDisplayName , cellcount: selCount, color: selColor});
     }// for
 }
@@ -66,15 +66,16 @@ cellSelectionUIcontroller.prototype.generateCellSelectionStore = function() {
 cellSelectionUIcontroller.prototype.generateUI = function() {
     var uipanel = Ext.getCmp('cellselection-app-container');
 
+    var thisViewer = this;
     var cellTableSelectionModel =  Ext.create('Ext.selection.CheckboxModel', {});
     var cellSelectionTable = Ext.create('Ext.grid.Panel',{
     	title: 'Available Cell Selections',
     	id: 'cellSelectionTable',
     	store: Ext.data.StoreManager.lookup('cellSelectionStoreForSelectionTable'),
     	columns: [
-    	    {text: 'Name', dataIndex: 'displayname', width: '67%'},
+    	    {text: 'Name', dataIndex: 'displayname', width: '62%'},
     	    {text: 'Count', dataIndex: 'cellcount', width: '28%'},
-    	    {text: "&#x03DF;", dataIndex: 'color',width:'5%', renderer: 
+    	    {text: "&#x03DF;", dataIndex: 'color',width:'5%', renderer:
     	    function(value, meta){
     	      meta.style = "background-color:"+value+";";
     	    }}
@@ -91,10 +92,10 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
     defaultType: 'textfield',
     items: [
   	  cellSelectionTable,
-      {
+  {
         xtype: 'button',
         text: 'Delete',
-        handler: function() { 
+        handler: function() {
           var selectionTable = Ext.getCmp('cellSelectionTable');
       		var selectedItems = selectionTable.getSelectionModel().getSelected();
       		if (selectedItems.length >= 1) {
@@ -123,41 +124,26 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
           }
         }
       },
-      {
+  {
         xtype: 'button',
         text: 'Merge',
         handler: function() {
           var selectionTable = Ext.getCmp('cellSelectionTable');
     		  var selectedItems = selectionTable.getSelectionModel().getSelected();
     		  if (selectedItems.length >= 2) {
-    		    
+
     		    var selectionNames = [];
             for(var i = 0; i < selectedItems.length; i++){
               selectionNames.push(selectedItems.getAt(i).getData().selectionname);
     		    }
-            Ext.MessageBox.prompt('New name', 'Name for new selection:',function(btn, text) {
-              if ( btn === 'ok') {
-                var cellSelCntr =  new cellSelectionController();
 
-                var newSelectionName = text;
-                var newSelectionDisplayName = text;
+    		    thisViewer.promptName("", function(newDisplayName){
+          	  var cellSelCntr =  new cellSelectionController();
+          	  if(newDisplayName !== false){
+          	    cellSelCntr.mergeSelectionsIntoNew(selectionNames, newDisplayName);
+      	    }
+      	})
 
-                var re = new RegExp('[^A-Za-z0-9_]');
-                if (newSelectionName.length === 0) {
-                  Ext.MessageBox.alert('Error', 'You must enter a selection name');
-                }
-                else if (newSelectionName.match(re) ) {
-                  Ext.MessageBox.alert('Error', 'The name must only contain letters, numbers and underscores (_)');
-                } else {
-                if (cellSelCntr.getSelection(newSelectionName)) {
-                  Ext.MessageBox.alert('Error','A selection with this name already exists!');
-                } else {
-                  cellSelCntr.mergeSelectionsIntoNew(selectionNames,
-                    newSelectionName, newSelectionDisplayName);
-                }
-              } // if btn ok
-            }
-          });
     		  } else {
             Ext.MessageBox.alert('Warning', 'Please pick at least two cell selections to merge first.');
     		  }
@@ -165,8 +151,7 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
         }
 
       },
-      ///
-   {
+  {
         xtype: 'button',
         text: 'Intersect',
         handler: function() {
@@ -177,30 +162,14 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
             for(var i = 0; i < selectedItems.length; i++){
               selectionNames.push(selectedItems.getAt(i).getData().selectionname);
     		    }
-            
-            Ext.MessageBox.prompt('New name', 'Name for new selection:',function(btn, text) {
-              if ( btn === 'ok') {
-                var cellSelCntr =  new cellSelectionController();
+            thisViewer.promptName("", function(newDisplayName){
+          	  var cellSelCntr =  new cellSelectionController();
+          	  if(newDisplayName !== false){
+          	    cellSelCntr.intersectSelectionsIntoNew(selectionNames, newDisplayName);
+      	      }
+            })
 
-                var newSelectionName = text;
-                var newSelectionDisplayName = text;
 
-                var re = new RegExp('[^A-Za-z0-9_]');
-                if (newSelectionName.length === 0) {
-                  Ext.MessageBox.alert('Error', 'You must enter a selection name');
-                }
-                else if (newSelectionName.match(re) ) {
-                  Ext.MessageBox.alert('Error', 'The name must only contain letters, numbers and underscores (_)');
-                } else {
-                if (cellSelCntr.getSelection(newSelectionName)) {
-                  Ext.MessageBox.alert('Error','A selection with this name already exists!');
-                } else {
-                  cellSelCntr.intersectSelectionsIntoNew(selectionNames,
-                    newSelectionName, newSelectionDisplayName);
-                }
-              } // if btn ok
-            }
-          });
     		  } else {
             Ext.MessageBox.alert('Warning', 'Please pick at least two cell selections to intersect first.');
     		  }
@@ -208,10 +177,9 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
         }
 
       },
-      ///
-        {
+  {
             xtype: 'button',
-            text: 'Duplicate',
+            text: 'Save As',
 	    handler: function() {
     		var selectionTable = Ext.getCmp('cellSelectionTable');
     		var selectedItems = selectionTable.getSelectionModel().getSelected();
@@ -219,36 +187,12 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
     		    var oldSelectionName = selectedItems.getAt(0).getData().selectionname;
     		    var oldDisplayName = selectedItems.getAt(0).getData().displayname;
 
-    		    Ext.MessageBox.prompt('New name', 'Name for new selection:',function(btn, text) {
-    			if ( btn === 'ok') {
-
-    			    var cellSelCntr =  new cellSelectionController();
-
-    			    var newSelectionName = text;
-    			    var newSelectionDisplayName = text;
-
-    			    var re = new RegExp('[^A-Za-z0-9_]');
-    			    if (newSelectionName.length === 0) {
-    				Ext.MessageBox.alert('Error',
-    						     'You must enter a selection name');
-    			    }
-    			    else if (newSelectionName.match(re) ) {
-    				Ext.MessageBox.alert('Error',
-                                      'The name must only contain letters, numbers and underscores (_)');
-    			    } else {
-    				if (cellSelCntr.getSelection(newSelectionName)) {
-    				    Ext.MessageBox.alert(
-    					'Error',
-    					'A selection with this name already exists!');
-    				} else {
-    				    cellSelCntr.duplicateSelection(oldSelectionName,
-    								   newSelectionName,
-    								   newSelectionDisplayName);
-    				}
-
-    			    }
-    			}
-		    });
+            thisViewer.promptName(oldDisplayName, function(newDisplayName){
+          	  var cellSelCntr =  new cellSelectionController();
+          	  if(newDisplayName !== false){
+          	    cellSelCntr.duplicateSelection(oldSelectionName,newDisplayName);
+          	  }
+          	})
 
 
 		} else {
@@ -264,16 +208,14 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 		var selectionTable = Ext.getCmp('cellSelectionTable');
 		var selectedItems = selectionTable.getSelectionModel().getSelected();
 		if (selectedItems.length === 1) {
+		    var oldDisplayName = selectedItems.getAt(0).getData().displayName;
 		    var oldSelectionName = selectedItems.getAt(0).getData().selectionname;
-
-		    Ext.Msg.prompt('Rename Cell Selection', 'Please enter a new name:', function(btn, text) {
-			if (btn =='ok') {
-			    var newDisplayName = text;
-			    var cellSelCntr =  new cellSelectionController();
-			    cellSelCntr.renameSelection(oldSelectionName, newDisplayName);
-			}
-		    });
-
+      	thisViewer.promptName(oldDisplayName, function(newDisplayName){
+      	  var cellSelCntr =  new cellSelectionController();
+      	  if(newDisplayName !== false){
+      	    cellSelCntr.renameSelection(oldSelectionName, newDisplayName);
+      	  }
+      	})
 		} else {
 		    Ext.MessageBox.alert('Warning', 'Please choose only one cell selection first');
 		}
@@ -291,11 +233,11 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
         label: "Pagoda CSV",
         value: "csv"
       });
-      importOptionsStore.add({
+      /*importOptionsStore.add({
         label: "JSON format",
         value: "json"
-      });
-      
+      });*/
+
       // Make a combobox
       var importComboBox = Ext.create('Ext.form.ComboBox', {
 	      fieldLabel: 'Export Format:',
@@ -330,16 +272,16 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	            margin: "5 5 5 5",
 	            align: "center",
 	            handler: function(){
-	                  
+
 	              if(importComboBox.getValue() === "csv"){
                   var selectionFormatted = [];
                   var cellSelCntr = new cellSelectionController();
                   for(var index = 0; index < selectedItems.length; index++){
-      	            var selectionName = selectedItems.getAt(index).getData().selectionname;
+                    var selectionName = selectedItems.getAt(index).getData().selectionname;
       	            var displayName = selectedItems.getAt(index).getData().displayname;
       	            var color = selectedItems.getAt(index).getData().color.substring(1);
     	              var selection = cellSelCntr.getSelection(selectionName);
-                    selectionFormatted.push(selectionName+ "," + color + "," + displayName + "," + selection.join(","));
+                    selectionFormatted.push(color + "," + displayName + "," + selection.join(","));
   		            }
   		              window.open('data:application/csv;charset=utf-8,' + encodeURI(selectionFormatted.join("\n")));
                 }
@@ -347,7 +289,7 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	                    Ext.Msg.alert("Warning", "File format not yet supported");
 	              }
 	              else{
-	                    Ext.Msg.alert("Error", "An unexpected error has occured");
+	                    Ext.Msg.alert("Error", "No file format specified");
 	                    Ext.getCmp('cellFileCreationWindow').close();
 	                    return;
 	              }
@@ -368,12 +310,12 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	          },
 	        ],
 	      }).show();
-	      
+
 	    } else {
     		Ext.MessageBox.alert('Warning', 'Please choose one or more cell selections first');
     	}
     }
-          
+
 	},
 	{
 	  xtype: 'button',
@@ -388,11 +330,11 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
         label: "Pagoda CSV",
         value: "csv"
       });
-      importOptionsStore.add({
+      /*importOptionsStore.add({
         label: "JSON format",
         value: "json"
-      });
-      
+      });*/
+
       // Make a combobox
       var importComboBox = Ext.create('Ext.form.ComboBox', {
 	      fieldLabel: 'Import Format:',
@@ -444,31 +386,28 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
   	                  var cellSelCntrl = new cellSelectionController();
 	                    var total = 0;
 	                    var removedCells = {};
-	                    
+
   	                  for(var line = 0; line < lines.length; line++){
 	                      if(lines[line].length !== 0){
 	                        var selection = lines[line].split(",");
-	                        var selName = selection.shift();
 	                        var color = "#" + selection.shift();
 	                        var dispName = selection.shift();
-	                        removedCells[selName] = 0;
+	                        removedCells[dispName] = 0;
 	                        var pureSelection = [];
 	                        for(var elem = 0; elem < selection.length; elem++){
 	                          if(cellOrder.includes(selection[elem])){
 	                            pureSelection.push(selection[elem]);
 	                          }
   	                        else{
-	                            removedCells[selName]++;
+	                            removedCells[dispName]++;
 	                          }
   	                      }// ensure all cells are rightfully containers
-	                        if(cellSelCntrl.getSelection(dispName)){
-  	                        dispName = dispName  + "~RecentlyLoaded"
-	                        }
-	                        if(cellSelCntrl.getSelection(selName)){
-  	                        selName = selName  + "~RecentlyLoaded"
-	                        }
-	                        if(removedCells[selName] !== selection.length){
-	                          cellSelCntrl.setSelection(selName,pureSelection,dispName,"loaded from " + cellSelFileName, color);
+
+	                        if(removedCells[dispName] !== selection.length){
+	                          while(cellSelCntrl.displayNameExists(dispName)){
+  	                          dispName = dispName  + "~RecentlyLoaded"
+	                          }
+	                          cellSelCntrl.setSelection(pureSelection,dispName,{}, color);
 	                          total++;
 	                        }//confirm
   	                    }
@@ -484,10 +423,10 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
   	           };
 	             }
 	             else if(selection === "json"){
-	                    
+
 	             }
 	             else if(selection === "pagbin"){
-	                    
+
 	             }
 	             else{
 	               Ext.Msg.alert("Error", "An unexpected error has occured");
@@ -510,14 +449,14 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	            }
 	          },
 	          importComboBox
-	          
+
             ]
             })
 	        ],
 	      }).show();
 	    }
 	    Ext.getCmp('cellFileSelectionWindow').focus();
-	    
+
 	  }
 	},
 	{
@@ -526,12 +465,12 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	  handler: function() {
 	    	var selectionTable = Ext.getCmp('cellSelectionTable');
     		var selectedItems = selectionTable.getSelectionModel().getSelected();
-    		    
+
     		    var selectionNames = []
     		    for(var i = 0; i < selectedItems.length; i++){
               selectionNames.push(selectedItems.getAt(i).getData().selectionname);
     		    }
-    		    
+
             // Highlight on heatmap
             var heatV = new heatmapViewer();
             heatV.highlightCellSelectionsByNames(selectionNames);
@@ -553,9 +492,40 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	  }
 	},
 	{
+	xtype: 'button',
+	  text: 'Highlight with text',
+	  handler: function() {
+	    	var selectionTable = Ext.getCmp('cellSelectionTable');
+    		var selectedItems = selectionTable.getSelectionModel().getSelected();
+
+    		    var selectionNames = []
+    		    for(var i = 0; i < selectedItems.length; i++){
+              selectionNames.push(selectedItems.getAt(i).getData().selectionname);
+    		    }
+
+            // Highlight on heatmap
+            var heatV = new heatmapViewer();
+            heatV.highlightCellSelectionsByNames(selectionNames);
+            pagHelpers.regC(72);
+
+            // Highlight on embedding
+            var embCntr = new embeddingViewer();
+            embCntr.highlightSelectionsByNames(selectionNames, true);
+
+            // Highlight on Aspects
+            var aspHeatView = new aspectHeatmapViewer();
+            aspHeatView.highlightCellSelectionsByNames(selectionNames);
+
+            //Highlight on Metadata
+            var metaView = new metaDataHeatmapViewer();
+            metaView.highlightCellSelectionsByNames(selectionNames);
+
+	  }
+	},
+	{
 	  xtype: 'button',
-	  text: 'Change Highlight',
-	  handler: 
+	  text: 'Change Color',
+	  handler:
 	  function(){
 	    var selectionTable = Ext.getCmp('cellSelectionTable');
 		  var selectedItems = selectionTable.getSelectionModel().getSelected();
@@ -571,7 +541,7 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	        modal: true,
 	        items:[
               {
-                xtype:"colorfield",              
+                xtype:"colorfield",
                 fieldLabel: 'Highlight Color',
                 id: "colorPicker",
                 labelWidth: 75,
@@ -588,7 +558,7 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 	            align: "center",
 	            margin: "5 5 5 5",
 	            handler: function(){
-	              
+
 	              cellSelCntrl.setColor(selectedItems.getAt(0).getData().selectionname, "#" + (Ext.getCmp("colorPicker").value))
 	              var heatView = new heatmapViewer();
                 var aspHeatView = new aspectHeatmapViewer();
@@ -598,7 +568,7 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
                 aspHeatView.highlightCellSelectionByName(selectionName);
                 metaHeatView.highlightCellSelectionByName(selectionName);
                 embCntr.highlightSelectionByName(selectionName);
-	          
+
 	              Ext.getCmp('cellSelectionColorWindow').close();
 	            }
 	          },
@@ -618,14 +588,78 @@ cellSelectionUIcontroller.prototype.generateUI = function() {
 		} else {
 		    Ext.MessageBox.alert('Warning', 'Please choose only one cell selection first');
 		}
-	   
+
+	  }
+	},
+	{
+	  xtype: 'button',
+	  text: 'Regex Selection',
+	  handler:
+	  function(){
+
+	    Ext.MessageBox.prompt("Regular Expression Selection", "Create Selection Using a Regular Expression",function(btn,text){
+	      if(btn === "ok"){
+	        var re = new RegExp(text);
+	        var selection = [];
+	        var dataCtrl = new dataController();
+	        dataCtrl.getCellOrder(function(data){
+	          for(var i = 0; i < data.length; i++){
+	            if(data[i].match(re)){
+	              selection.push(data[i])
+	            }
+	          }
+	        })
+	        if(selection.length > 0){
+
+          	thisViewer.promptName(text.split(",").join(""), function(newDisplayName){
+          	  var cellSelCntr =  new cellSelectionController();
+          	  if(newDisplayName !== false){
+          	    cellSelCntr.setSelection(newDisplayName ,selection);
+          	  }
+          	})
+	        }
+	      }
+	    })
 	  }
 	}
-	
+
     ]
     });
 
     uipanel.add(formPanel);
+
+}
+
+cellSelectionUIcontroller.prototype.promptName = function(curDisplay, callback){
+    		    Ext.Msg.prompt('Rename Cell Selection', 'Please enter a new name:', function(btn, text) {
+        			if (btn =='ok') {
+      			    var newName = text;
+      			    var cellSelCntr = new cellSelectionController();
+      			    var cellSelUICntr = new cellSelectionUIcontroller();
+        			 var re = new RegExp('[^A-Za-z0-9_]');
+      			    if (newName.length === 0) {
+      				    Ext.MessageBox.alert('Error','You must enter a selection name',function(e){
+        			      cellSelUICntr.promptName(newName, callback);
+        			    });
+      			    }
+      			    else if (newName.match(re) ) {
+      				    Ext.MessageBox.alert('Error', 'The name must only contain letters, numbers and underscores (_)',function(e){
+        			      cellSelUICntr.promptName(newName, callback);
+        			    });
+      			    }
+      			    else if (cellSelCntr.displayNameExists(newName)) {
+      				    Ext.MessageBox.alert('Error', 'A selection with this name already exists!',function(e){
+        			      cellSelUICntr.promptName(newName, callback);
+        			    });
+      				  }
+      				  else{
+      				    callback(newName)
+      				  }
+        			}
+        			else{
+        			  callback(false);
+        			}
+    		    },{},false,curDisplay);
 
 }
 
