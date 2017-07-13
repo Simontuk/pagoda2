@@ -1084,7 +1084,7 @@ Pagoda2 <- setRefClass(
       } else {
         pcas <- as.matrix(x %*% pcs$v);
       }
-      misc$PCA <<- pcs;
+      #misc$genePCA <<- pcs;
       #pcas <- scde::winsorize.matrix(pcas,0.05)
       # # control for sequencing depth
       # if(is.null(batch)) {
