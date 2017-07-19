@@ -21,9 +21,8 @@ sn <- function(x) { names(x) <- x; return(x); }
 #' @exportClass Pagoda2
 Pagoda2 <- setRefClass(
   "Pagoda2",
-  fields=c('counts','clusters','graphs','reductions','embeddings','diffgenes','pathways','n.cores','misc','batch','modelType','verbose','depth','batchNorm','mat','genereductions','genegraphs'),
+  fields=c('counts','clusters','graphs','reductions','embeddings','diffgenes','pathways','n.cores','misc','batch','modelType','verbose','depth','batchNorm','mat','genegraphs'),
   methods = list(
-    initialize=function(x, ..., modelType='plain',batchNorm='glm',n.cores=parallel::detectCores(),verbose=TRUE,min.cells.per.gene=30,trim=round(min.cells.per.gene/2),lib.sizes=NULL,log.scale=FALSE) {
       # # init all the output lists
       embeddings <<- list();
       graphs <<- list();
@@ -31,7 +30,6 @@ Pagoda2 <- setRefClass(
       reductions <<-list();
       clusters <<- list();
       pathways <<- list();
-      genereductions <<- list();
       genegraphs <<- list();
       misc <<-list(lib.sizes=lib.sizes,log.scale=log.scale,model.type=modelType,trim=trim);
       batch <<- NULL;
@@ -491,6 +489,56 @@ Pagoda2 <- setRefClass(
       return(invisible(cls))
     },
 
+    # Calculates gene Knn network for gene similarity
+    # Author: Simon Steiger
+    geneKnnbyPCA = function(nPcs = 100, scale =T , center=T, fastpath =T, maxit =100, k = 30, n.cores = .self$n.cores, verbose =T) {
+       # Transpose first
+       x <- t(counts);
+
+      # Do the PCA
+      require(irlba);
+      if (center) {
+          cm <- Matrix::colMeans(x);
+          pcs <- irlba(x, nv=nPcs, nu =0, center=cm, right_only = F, fastpath = fastpath, maxit= maxit, reorth = T);
+      } else {
+         pcs <- irlba(x, nv=nPcs, nu =0, right_only = F, fastpath = fastpath, maxit= maxit, reorth = T);
+      }
+      rownames(pcs) <- colnames(x);
+
+      # Optional centering
+      if (center) {
+        pcs$center <- cm;
+        pcas <- as.matrix(t(t(x %*% pcs$v) - t(cm  %*% pcs$v)))
+      } else {
+        pcas <- as.matrix(x %*% pcs$v);
+      }
+
+      # Keep the names
+      rownames(pcas) <- rownames(x);
+      colnames(pcas) <- paste0('PC',seq(ncol(pcas)));
+
+      # Save into genegraphs slot
+      genegraphs$genePCs <<- pcs;
+      genegraphs$geneRotated <<- pcas;
+
+      # Using cosine distance only here
+      if(center) {
+        pcas <- pcas - Matrix::rowMeans(pcas)
+      }
+      xn <- hnswKnn2(x,k, nTreads= n.cores, verbose=verbose)
+
+      # Remove self edges
+      xn <- xn [!xn$s == xn$e,]
+
+      # Turn into a dataframe
+      df <- data.frame(from=rownames(pcas)[xn$s+1], to=rownames(x)[xn$e+1],weight=xn$d, stringsAsFactors=F)
+
+      # Min weight is 0
+      df$weight <- pmax(0, df$weight)
+
+      genegraphs$graph <<- df;
+    },
+
     # calculate density-based clusters
     getDensityClusters=function(type='counts', embeddingType=NULL, name='density', v=0.7, s=1, ...) {
       if(is.null(embeddings[[type]])) { stop("first, generate embeddings for type ",type)}
@@ -635,7 +683,7 @@ Pagoda2 <- setRefClass(
       if(is.null(groups)) {
         # look up the clustering based on a specified type
         if(is.null(clusterType)) {
-          # take the first onef
+          # take the first one
           cols <- clusters[[type]][[1]]
         } else {
           cols <- clusters[[type]][[clusterType]]
