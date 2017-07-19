@@ -1105,122 +1105,122 @@ Pagoda2 <- setRefClass(
 
       return(invisible(pcas))
     },
-    geneKNNbyPCA = function(type="PCA",nPcs=100, name='genePCA', n.odgenes=2e3, cellselection=NULL, scale=F,center=T, cells=NULL,fastpath=TRUE,maxit=100,k=30,nrand=1e3,weight.type='none',n.cores=.self$n.cores,distance='cosine',verbose=TRUE,p=NULL) {
+    # geneKNNbyPCA = function(type="PCA",nPcs=100, name='genePCA', n.odgenes=2e3, cellselection=NULL, scale=F,center=T, cells=NULL,fastpath=TRUE,maxit=100,k=30,nrand=1e3,weight.type='none',n.cores=.self$n.cores,distance='cosine',verbose=TRUE,p=NULL) {
 
-      if(!name %in% names(genereductions)){
-        x <- t(counts)
+    #   if(!name %in% names(genereductions)){
+    #     x <- t(counts)
 
-        if(!is.null(cellselection)) { x <- x[,cellselection] }
-
-
-
-      require(irlba)
-       if(center) {
-            cm <- Matrix::colMeans(x)
-            pcs <- irlba(x, nv=nPcs, nu=0, center=cm, right_only=FALSE,fastpath=fastpath,maxit=maxit,reorth=T)
-          } else {
-            pcs <- irlba(x, nv=nPcs, nu=0, right_only=FALSE,fastpath=fastpath,maxit=maxit,reorth=T)
-          }
-      rownames(pcs$v) <- colnames(x);
+    #     if(!is.null(cellselection)) { x <- x[,cellselection] }
 
 
 
-      # adjust for centering!
-      if(center) {
-        pcs$center <- cm;
-        pcas <- as.matrix(t(t(x %*% pcs$v) - t(cm %*% pcs$v)))
-      } else {
-        pcas <- as.matrix(x %*% pcs$v);
-      }
-      #misc$genePCA <<- pcs;
-      #pcas <- scde::winsorize.matrix(pcas,0.05)
-      # # control for sequencing depth
-      # if(is.null(batch)) {
-      #   mx <- model.matrix(x ~ d,data=data.frame(x=1,d=depth))
-      # } else {
-      #   mx <- model.matrix(x ~ d*b,data=data.frame(x=1,d=depth,b=batch))
-      # }
-      # # TODO: how to get rid of residual depth effects in the PCA-based clustering?
-      # #pcas <- t(t(colLm(pcas,mx,returnResid=TRUE))+Matrix::colMeans(pcas))
-      # pcas <- colLm(pcas,mx,returnResid=TRUE)
-      rownames(pcas) <- rownames(x)
-      colnames(pcas) <- paste('PC',seq(ncol(pcas)),sep='')
-      #pcas <- pcas[,-1]
-      #pcas <- scde::winsorize.matrix(pcas,0.1)
-
-      genereductions[[name]] <<- pcas;
-      ## nIcs <- nPcs;
-      ## a <- ica.R.def(t(pcas),nIcs,tol=1e-3,fun='logcosh',maxit=200,verbose=T,alpha=1,w.init=matrix(rnorm(nIcs*nPcs),nIcs,nPcs))
-      ## reductions[['ICA']] <<- as.matrix( x %*% pcs$v %*% a);
-      ## colnames(reductions[['ICA']]) <<- paste('IC',seq(ncol(reductions[['ICA']])),sep='');
-      } else {
-        pcas <- genereductions[[name]]
-      }
+    #   require(irlba)
+    #    if(center) {
+    #         cm <- Matrix::colMeans(x)
+    #         pcs <- irlba(x, nv=nPcs, nu=0, center=cm, right_only=FALSE,fastpath=fastpath,maxit=maxit,reorth=T)
+    #       } else {
+    #         pcs <- irlba(x, nv=nPcs, nu=0, right_only=FALSE,fastpath=fastpath,maxit=maxit,reorth=T)
+    #       }
+    #   rownames(pcs$v) <- colnames(x);
 
 
-      x <- pcas
 
-      # TODO: enable sparse matrix support for hnsKnn2
+    #   # adjust for centering!
+    #   if(center) {
+    #     pcs$center <- cm;
+    #     pcas <- as.matrix(t(t(x %*% pcs$v) - t(cm %*% pcs$v)))
+    #   } else {
+    #     pcas <- as.matrix(x %*% pcs$v);
+    #   }
+    #   #misc$genePCA <<- pcs;
+    #   #pcas <- scde::winsorize.matrix(pcas,0.05)
+    #   # # control for sequencing depth
+    #   # if(is.null(batch)) {
+    #   #   mx <- model.matrix(x ~ d,data=data.frame(x=1,d=depth))
+    #   # } else {
+    #   #   mx <- model.matrix(x ~ d*b,data=data.frame(x=1,d=depth,b=batch))
+    #   # }
+    #   # # TODO: how to get rid of residual depth effects in the PCA-based clustering?
+    #   # #pcas <- t(t(colLm(pcas,mx,returnResid=TRUE))+Matrix::colMeans(pcas))
+    #   # pcas <- colLm(pcas,mx,returnResid=TRUE)
+    #   rownames(pcas) <- rownames(x)
+    #   colnames(pcas) <- paste('PC',seq(ncol(pcas)),sep='')
+    #   #pcas <- pcas[,-1]
+    #   #pcas <- scde::winsorize.matrix(pcas,0.1)
 
-      if(distance=='cosine') {
-        if(center) {
-          x <- x - Matrix::rowMeans(x) # centering for consine distance
-        }
-        xn <- hnswKnn2(x,k,nThreads=n.cores,verbose=verbose)
-      } else if(distance=='JS') {
-        x <- x/pmax(1,Matrix::rowSums(x));
-        xn <- hnswKnnJS(x,k,nThreads=n.cores)
-      } else if(distance=='L2') {
-        xn <- hnswKnnLp(x,k,nThreads=n.cores,p=2.0,verbose=verbose)
-      } else if(distance=='L1') {
-        xn <- hnswKnnLp(x,k,nThreads=n.cores,p=1.0,verbose=verbose)
-      } else if(distance=='Lp') {
-        if(is.null(p)) stop("p argument must be provided when using Lp distance")
-        xn <- hnswKnnLp(x,k,nThreads=n.cores,p=p,verbose=verbose)
-      } else {
-        stop("unknown distance measure specified")
-      }
-      if(weight.type=='rank') {
-        xn$r <-  unlist(lapply(diff(c(0,which(diff(xn$s)>0),nrow(xn))),function(x) seq(x,1)))
-      }
-      xn <- xn[!xn$s==xn$e,]
+    #   genereductions[[name]] <<- pcas;
+    #   ## nIcs <- nPcs;
+    #   ## a <- ica.R.def(t(pcas),nIcs,tol=1e-3,fun='logcosh',maxit=200,verbose=T,alpha=1,w.init=matrix(rnorm(nIcs*nPcs),nIcs,nPcs))
+    #   ## reductions[['ICA']] <<- as.matrix( x %*% pcs$v %*% a);
+    #   ## colnames(reductions[['ICA']]) <<- paste('IC',seq(ncol(reductions[['ICA']])),sep='');
+    #   } else {
+    #     pcas <- genereductions[[name]]
+    #   }
 
-      if(n.cores==1) { # for reproducibility, sort by node names
-        if(verbose) cat("ordering neighbors for reproducibility ... ");
-        xn <- xn[order(xn$s+xn$e),]
-        if(verbose) cat("done\n");
-      }
-      df <- data.frame(from=rownames(x)[xn$s+1],to=rownames(x)[xn$e+1],weight=xn$d,stringsAsFactors=F)
-      if(weight.type=='rank') { df$rank <- xn$r }
-      if(weight.type %in% c("cauchy","normal") && ncol(x)>sqrt(nrand)) {
-        # generate some random pair data for scaling
-        if(distance=='cosine') {
-          #rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {1-cor(x[,z[1]],x[,z[2]])}))
-          rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {1-sum(x[,z[1]]*x[,z[2]])/sqrt(sum(x[,z[1]]^2)*sum(x[,z[2]]^2))}))
-        } else if(distance=='JS') {
-          rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {jw.disR(x[,z[1]],x[,z[2]])}))
-        } else if(distance=='L2') {
-          rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {sqrt(sum((x[,z[1]]-x[,z[2]])^2))}))
-        } else if(distance=='L1') {
-          rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {sum(abs(x[,z[1]]-x[,z[2]]))}))
-        }
-        suppressWarnings(rd.model <- fitdistr(rd,weight.type))
-        if(weight.type=='cauchy') {
-          df$weight <- 1/pcauchy(df$weight,location=rd.model$estimate['location'],scale=rd.model$estimate['scale'])-1
-        } else {
-          df$weight <- 1/pnorm(df$weight,mean=rd.model$estimate['mean'],sd=rd.model$estimate['sd'])-1
-        }
-      }
-      df$weight <- pmax(0,df$weight);
-      if(weight.type=='constant') { df$weight <- 1}
-      if(weight.type=='rank') { df$weight <- sqrt(df$rank) };
-      # make a weighted edge matrix for the largeVis as well
 
-      misc[['GeneEdgeMat']][[type]] <<- cbind(xn,rd=df$weight);
-      g <- as.undirected(graph.data.frame(df))
-      genegraphs[[type]] <<- g;
+    #   x <- pcas
 
-    },
+    #   # TODO: enable sparse matrix support for hnsKnn2
+
+    #   if(distance=='cosine') {
+    #     if(center) {
+    #       x <- x - Matrix::rowMeans(x) # centering for consine distance
+    #     }
+    #     xn <- hnswKnn2(x,k,nThreads=n.cores,verbose=verbose)
+    #   } else if(distance=='JS') {
+    #     x <- x/pmax(1,Matrix::rowSums(x));
+    #     xn <- hnswKnnJS(x,k,nThreads=n.cores)
+    #   } else if(distance=='L2') {
+    #     xn <- hnswKnnLp(x,k,nThreads=n.cores,p=2.0,verbose=verbose)
+    #   } else if(distance=='L1') {
+    #     xn <- hnswKnnLp(x,k,nThreads=n.cores,p=1.0,verbose=verbose)
+    #   } else if(distance=='Lp') {
+    #     if(is.null(p)) stop("p argument must be provided when using Lp distance")
+    #     xn <- hnswKnnLp(x,k,nThreads=n.cores,p=p,verbose=verbose)
+    #   } else {
+    #     stop("unknown distance measure specified")
+    #   }
+    #   if(weight.type=='rank') {
+    #     xn$r <-  unlist(lapply(diff(c(0,which(diff(xn$s)>0),nrow(xn))),function(x) seq(x,1)))
+    #   }
+    #   xn <- xn[!xn$s==xn$e,]
+
+    #   if(n.cores==1) { # for reproducibility, sort by node names
+    #     if(verbose) cat("ordering neighbors for reproducibility ... ");
+    #     xn <- xn[order(xn$s+xn$e),]
+    #     if(verbose) cat("done\n");
+    #   }
+    #   df <- data.frame(from=rownames(x)[xn$s+1],to=rownames(x)[xn$e+1],weight=xn$d,stringsAsFactors=F)
+    #   if(weight.type=='rank') { df$rank <- xn$r }
+    #   if(weight.type %in% c("cauchy","normal") && ncol(x)>sqrt(nrand)) {
+    #     # generate some random pair data for scaling
+    #     if(distance=='cosine') {
+    #       #rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {1-cor(x[,z[1]],x[,z[2]])}))
+    #       rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {1-sum(x[,z[1]]*x[,z[2]])/sqrt(sum(x[,z[1]]^2)*sum(x[,z[2]]^2))}))
+    #     } else if(distance=='JS') {
+    #       rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {jw.disR(x[,z[1]],x[,z[2]])}))
+    #     } else if(distance=='L2') {
+    #       rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {sqrt(sum((x[,z[1]]-x[,z[2]])^2))}))
+    #     } else if(distance=='L1') {
+    #       rd <- na.omit(apply(cbind(sample(colnames(x),nrand,replace=T),sample(colnames(x),nrand,replace=T)),1,function(z) if(z[1]==z[2]) {return(NA); } else {sum(abs(x[,z[1]]-x[,z[2]]))}))
+    #     }
+    #     suppressWarnings(rd.model <- fitdistr(rd,weight.type))
+    #     if(weight.type=='cauchy') {
+    #       df$weight <- 1/pcauchy(df$weight,location=rd.model$estimate['location'],scale=rd.model$estimate['scale'])-1
+    #     } else {
+    #       df$weight <- 1/pnorm(df$weight,mean=rd.model$estimate['mean'],sd=rd.model$estimate['sd'])-1
+    #     }
+    #   }
+    #   df$weight <- pmax(0,df$weight);
+    #   if(weight.type=='constant') { df$weight <- 1}
+    #   if(weight.type=='rank') { df$weight <- sqrt(df$rank) };
+    #   # make a weighted edge matrix for the largeVis as well
+
+    #   misc[['GeneEdgeMat']][[type]] <<- cbind(xn,rd=df$weight);
+    #   g <- as.undirected(graph.data.frame(df))
+    #   genegraphs[[type]] <<- g;
+
+    # },
 
     # test pathway overdispersion
     # this is a compressed version of the PAGODA1 approach
