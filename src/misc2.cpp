@@ -295,3 +295,5 @@ arma::vec smatColVecCorr(SEXP sY,  SEXP sv, bool parallel=true) {
 arma::mat arma_mat_cor(const arma::mat& m) {
   return(cor(m));
 }
+
+
