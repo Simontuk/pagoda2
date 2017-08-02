@@ -55,7 +55,7 @@ pagoda2WebApp <- setRefClass(
         # keepOriginal: maintain a copy to the original RF object -- this allows for some extra capabilities
 
         initialize = function(pagoda2obj, appName = "DefaultPagoda2Name", dendGroups,
-                              verbose = 0, debug, geneSets, metadata=metadata, keepOriginal=TRUE) {
+                              verbose = 0, debug, geneSets, metadata=metadata, innerClust="none", keepOriginal=TRUE) {
 
             if (keepOriginal) {
               originalP2object <<- pagoda2obj
@@ -84,7 +84,7 @@ pagoda2WebApp <- setRefClass(
             # Generate an hclust object of these cell groups
             # a cell ordering compatible with these groups
             # an the number of cells in each group (for plotting purposes)
-            mainDendrogram <<- .self$generateDendrogramOfGroups(pagoda2obj,dendGroups);
+            mainDendrogram <<- .self$generateDendrogramOfGroups(pagoda2obj,dendGroups,innerClust);
 
             # Available reductions
             reductions <<- pagoda2obj$reductions;
@@ -135,7 +135,7 @@ pagoda2WebApp <- setRefClass(
         },
 
 
-        generateDendrogramOfGroups = function(r, dendrogramCellGroups){
+        generateDendrogramOfGroups = function(r, dendrogramCellGroups,innerClust="none"){
             cl0 <- dendrogramCellGroups
             # Generate an hclust objct of the above groups
             dendrogramCellGroups <- dendrogramCellGroups[match(rownames(r$counts),names(dendrogramCellGroups))]
@@ -152,7 +152,50 @@ pagoda2WebApp <- setRefClass(
             # We now need to derive a cell order compatible with the order
             # of the above dendrogram
             cellorder <- unlist(lapply(hcGroups$labels[hcGroups$order], function(x) {
-                base::sample(names(cl0)[cl0 == x]) # Sample for random order
+                if(length(names(cl0)[cl0 == x])==1){
+                    celsel
+                } else {
+                    if(innerClust == "none"){
+                        base::sample(names(cl0)[cl0 == x]) # Sample for random order    
+                    } else if (innerClust == "PCA"){
+                        celsel <- names(cl0)[cl0 == x]
+                        if(length(celsel)>1){
+                            celsel[order(.self$originalP2object$counts[celsel, .self$originalP2object$misc$odgenes] %*% irlba(.self$originalP2object$counts[celsel,.self$originalP2object$misc$odgenes],nv = 1,nu=0)$v,decreasing = T)]
+                        }
+                        celsel
+                    } else if (innerClust == "cordist"){
+                        celsel <- names(cl0)[cl0 == x]
+                        if(length(celsel)>1){
+                            celsel[hclust(as.dist(1-WGCNA::cor(t(.self$originalP2object$counts[celsel,.self$originalP2object$misc$odgenes]))))$order]
+                        }
+                        celsel
+                    } else if (innerClust=="knn"){
+                        cells <- names(cl0)[cl0 == as.numeric(x)]
+                        k <- round(pmax(length(cells)*0.10,5))
+                        nv <- ceiling(pmax(length(cells)*0.10,1))
+                        #xx <- r$counts[cells,lods[[as.character(x)]]]
+                        #xx@x <- xx@x*rep(r$misc[['varinfo']][colnames(xx),'gsf'],diff(xx@p))
+                        xx <- .self$originalP2object$counts[cells,] %*% irlba(.self$originalP2object$counts[cells,],nv = nv,nu=0)$v
+                        colnames(xx) <- paste('PC',seq(ncol(xx)),sep='')
+
+                        
+                        xn <- hnswKnnLp(as.matrix(xx),k,nThreads=n.cores,p=2.0,verbose=0)
+                        xn <- xn[!xn$s==xn$e,]
+                        xn$r <-  unlist(lapply(diff(c(0,which(diff(xn$s)>0),nrow(xn))),function(x) seq(x,1)))
+                    
+                        df <- data.frame(from=rownames(xx)[xn$s+1],to=rownames(xx)[xn$e+1],weight=xn$d,stringsAsFactors=F)
+                        
+                        df$weight <- pmax(0,df$weight);
+                        xn <- cbind(xn,rd=df$weight)
+                        edgeMat <- sparseMatrix(i=xn$s+1,j=xn$e+1,x=xn$rd,dims=c(nrow(xx),nrow(xx)))
+                        edgeMat <- edgeMat + t(edgeMat);
+                        wij <- buildWijMatrix(edgeMat,perplexity=100,threads=.self$originalP2object$n.cores)
+                        coords <- projectKNNs(wij = wij, dim=1, M = 5, verbose = FALSE,sgd_batches = 2e6,gamma=1, seed=1)
+                        
+                        rownames(xx)[order(coords)]
+                    }
+                }
+                
             }))
 
             # We need the cell order cluster sizes
@@ -1011,8 +1054,10 @@ pagoda2WebApp <- setRefClass(
             ## Include RCPP Export to binary here:
             # return(exportList)
             
+            
+            outfilename <- file.path(getwd(),outfilename);
+            WriteListToBinary(expL=exportList,outfile = outfilename);
             return(invisible(exportList));
-            WriteListToBinary(exportList,outfilename);
         },
 
         # Serialise an R array to a JSON object
