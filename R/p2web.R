@@ -179,7 +179,7 @@ pagoda2WebApp <- setRefClass(
                         colnames(xx) <- paste('PC',seq(ncol(xx)),sep='')
 
                         
-                        xn <- hnswKnnLp(as.matrix(xx),k,nThreads=n.cores,p=2.0,verbose=0)
+                        xn <- hnswKnnLp(as.matrix(xx),k,nThreads=.self$originalP2object$n.cores,p=2.0,verbose=0)
                         xn <- xn[!xn$s==xn$e,]
                         xn$r <-  unlist(lapply(diff(c(0,which(diff(xn$s)>0),nrow(xn))),function(x) seq(x,1)))
                     
