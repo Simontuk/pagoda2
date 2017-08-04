@@ -27,9 +27,14 @@ Imports: rjson,
     Rtsne,
     GO.db,
     RMTstat,
-    org.Hs.eg.db
+    org.Hs.eg.db,
+    pcaMethods,
+    largeVis
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 6.0.1
 LinkingTo: Rcpp, RcppArmadillo
 NeedsCompilation: yes
+Remotes: bioc::org.Hs.eg.db,
+    elbamos/largeVis,
+    bioc::GO.db
