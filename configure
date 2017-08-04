@@ -1,0 +1,13 @@
+set -x
+set -e
+
+which cmake
+
+
+export NMSLIB_PATH=inst/include
+cd $NMSLIB_PATH/similarity_search
+mkdir _build
+cd _build
+cmake .
+make
+cd .. && rm _build
