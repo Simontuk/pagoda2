@@ -35,6 +35,4 @@ VignetteBuilder: knitr
 RoxygenNote: 6.0.1
 LinkingTo: Rcpp, RcppArmadillo
 NeedsCompilation: yes
-Remotes: bioc::release/org.Hs.eg.db,
-    elbamos/largeVis,
-    bioc::GO.db
+Remotes: elbamos/largeVis
