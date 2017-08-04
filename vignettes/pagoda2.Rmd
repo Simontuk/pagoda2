@@ -7,10 +7,10 @@
     %\VignetteEngine{knitr::rmarkdown}
     \usepackage[utf8]{inputenc}
 ---
-  
+   
 # Analysis of single cell data with pagoda
 
-```
+```R
 library('pagoda2')
 library(Matrix)
 

@@ -1,5 +1,3 @@
-
-
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::plugins(openmp)]]
 // [[Rcpp::plugins(cpp11)]]
@@ -22,12 +20,8 @@
 #define BOOST_FILESYSTEM_NO_DEPRECATED
 #include <boost/filesystem.hpp>
 
-
-
-
 // Exception codes
 #define EX_MEM_ALLOC_FAIL 0x0001
-
 
 using namespace std;
 namespace fs = ::boost::filesystem;
@@ -89,7 +83,7 @@ struct entry {
 // Function prototypes
 
 template <typename T> inline T intDivRoundUP(T a, T b) {
-return(a + b -1) /b;
+    return(a + b -1) /b;
 }
 
 // Struct entry define make_entry_from_string function:
@@ -148,12 +142,14 @@ std::list<T>* NVtoL(Rcpp::NumericVector f)
     }
     return (s);
 }
-// Included export to binary function for the Webobject
+// Rcpp export to binary function for the Webobject
+// Uses boost/filesystem to write a binary file which can be opened by the JS frontend
 // Author: Simon Steiger
 // [[Rcpp::export]]
 void WriteListToBinary(List expL, std::string outfile)
 {
     // Read in JSON formatted strings from R List given by List expL
+    // TODO: Move the "convert to JSON" into a Cpp function
     string cellmetadataData = expL["cellmetadata"];
     string cellorderData = expL["cellorder"];
     string geneinformationData = expL["geneinformation"];
@@ -165,20 +161,6 @@ void WriteListToBinary(List expL, std::string outfile)
 
     // Reading in the names of exported Embeddings:
     vector<string> embedList = expL["embedList"];
-
-
-    // Read both sparse matrices into NumericVectors
-    // Sparse Matrix
-    // NumericVector SmatX = expL["matsparse_x"];
-    // IntegerVector SmatI = expL["matsparse_i"];
-    // expL["matsparse_p"];
-    // expL["matsparse_Dim"];
-
-    // // Aspect matrix
-    // expL["mataspect_x"];
-    // expL["mataspect_x"];
-    // expL["mataspect_x"];
-    // expL["mataspect_x"];
 
     // Structure list<entry> as defined in pagoda2.h - List for all entries
     list<entry> entries;
@@ -207,6 +189,7 @@ void WriteListToBinary(List expL, std::string outfile)
     // Reading all exported Embeddings into entries. Iteration over embedList
     for (int embedIndex = 0; embedIndex != embedList.size(); ++embedIndex)
     {
+        // TODO: Remove the json-extension - should be removed in the R part
         string AembedName = embedList[embedIndex];
         size_t lastindex = AembedName.find_last_of(".");
         string embedName = AembedName.substr(0, lastindex);
@@ -215,67 +198,41 @@ void WriteListToBinary(List expL, std::string outfile)
         entries.push_back(*embEntry);
     }
 
-    // Add Sparse count Matrix to entries - matsparse
-    // arma::uvec iData((unsigned int *)INTEGER(matsparse.slot("i")), LENGTH(matsparse.slot("i")), false, true);
-    // arma::uvec Dim((unsigned int *)INTEGER(matsparse.slot("Dim")), LENGTH(matsparse.slot("Dim")), false, true);
-    // arma::uvec pData((unsigned int *)INTEGER(matsparse.slot("p")), LENGTH(matsparse.slot("p")), false, true);
-    // arma::vec xData(REAL(matsparse.slot("x")), LENGTH(matsparse.slot("x")), false, true);
-
-    
-    // IntegerVector i = mat.slot("i");
-    // IntegerVector p = mat.slot("p");
-    // NumericVector x = mat.slot("x");
-
-    // list<uint32_t> *iData;
+    // ------------------------  Sparse Count Matrix  ------------------------
+    // Read in iData from R-export list and convert to list of pointers
     IntegerVector viData = expL["matsparse_i"];
     list<uint32_t> *iData;
     iData = IVtoL<uint32_t>(viData);
 
-    // iData = as<std::list<uint32_t>* >(expL["matsparse_i"]);
-    // iData(Mi->begin(), Mi->end());
-
+    // Dim from R-export list and convert to list of pointers
     IntegerVector vDim = expL["matsparse_dim"];
     list<uint32_t> *Dim;
     Dim = IVtoL<uint32_t>(vDim);
 
-    // list<uint32_t> *Dim;
-    // Dim = as<std::list<uint32_t>*>(expL["matsparse_Dim"]);
-    // Dim(Md.begin(), Md.end());
-
+    // pData from R-export list and convert to list of pointers
     IntegerVector vpData = expL["matsparse_p"];
     list<uint32_t> *pData;
     pData = IVtoL<uint32_t>(vpData);
 
-    // list<uint32_t> *pData;
-    // pData = as<std::list<uint32_t>*>(expL["matsparse_p"]);
-    // pData(Mp.begin(), Mp.end());
-
+    // xData from R-export list and convert to list of pointers
     NumericVector vxData = expL["matsparse_x"];
     list<float> *xData;
     xData = NVtoL<float>(vxData);
-
-    // list<float> *xData;
-    // xData = as<std::list<float>*>(expL["matsparse_x"]);
-    // xData(Mx.begin(), Mx.end());
 
     cout << "\t\tp array size: " << pData->size() << " [First entry value: " << pData->front() << "]" << endl;
     cout << "\t\ti array size: " << iData->size() << " [First entry value: " << iData->front() << "]" << endl;
     cout << "\t\tx array size: " << xData->size() << " [First entry value: " << xData->front() << "]" << endl;
 
-    // list<uint32_t> *iData;
-    // iData = (unsigned int *)INTEGER(matsparse.slot("i"));
-    // list<uint32_t> *Dim;
-    // Dim = (unsigned int *)INTEGER(matsparse.slot("Dim"));
-    // list<uint32_t> *pData;
-    // pData = (unsigned int *)INTEGER(matsparse.slot("p"));
-    // list<float> *xData;
-    // xData = (float)INTEGER(matsparse.slot("x"));
 
+    // Read the dimnames of the sparse matrices.
+    // Add a Nul to the end, because thats what happened in writing to a temporary txt file in R
     string matsparseDimnames1 = expL["matsparse_dimnames1"];
     matsparseDimnames1.push_back('\0');
     string matsparseDimnames2 = expL["matsparse_dimnames2"];
     matsparseDimnames2.push_back('\0');
 
+    // Create Header for sparse Matrix
+    // read Dimensions of Matrix by iterating through the list Dim 
     struct sparseMatrixHeader smh;
     list<uint32_t>::iterator li = Dim->begin();
     smh.dim1 = *li;
@@ -321,7 +278,6 @@ void WriteListToBinary(List expL, std::string outfile)
     // Write the x object
     for (list<float>::const_iterator iter = xData->begin(); iter != xData->end(); ++iter)
     {
-        //smhData << *iter;
         smhData.write((const char *) &*iter, sizeof(uint32_t));
     }
 
@@ -334,50 +290,41 @@ void WriteListToBinary(List expL, std::string outfile)
 
     struct entry *sparseMatrixEntry = make_entry_from_string("sparseMatrix", smhDataString);
     entries.push_back(*sparseMatrixEntry);
-    // ------------------------  Count Matrix  ------------------------
-    // SEXP matasp = expL["mataspect"];
-    // S4 mataspect(matasp);
-    
-    // Add Sparse Aspect Matrix to entries - mataspect
-    // arma::uvec AiData((unsigned int *)INTEGER(mataspect.slot("i")), LENGTH(mataspect.slot("i")), false, true);
-    // arma::uvec ADim((unsigned int *)INTEGER(mataspect.slot("Dim")), LENGTH(mataspect.slot("Dim")), false, true);
-    // arma::uvec ApData((unsigned int *)INTEGER(mataspect.slot("p")), LENGTH(mataspect.slot("p")), false, true);
-    // arma::vec AxData(REAL(mataspect.slot("x")), LENGTH(mataspect.slot("x")), false, true);
 
+    // ------------------------  Sparse Aspect Matrix  ------------------------
+    // Read in iData from R-export list and convert to list of pointers
     IntegerVector AviData = expL["mataspect_i"];
     list<uint32_t> *AiData;
     AiData = IVtoL<uint32_t>(AviData);
 
+    // Read in pData from R-export list and convert to list of pointers
     IntegerVector AvpData = expL["mataspect_p"];
     list<uint32_t> *ApData;
     ApData = IVtoL<uint32_t>(AvpData);
 
+    // Read in Dim from R-export list and convert to list of pointers
     IntegerVector AvDim = expL["mataspect_dim"];
     list<uint32_t> *ADim;
     ADim = IVtoL<uint32_t>(AvDim);
 
+    // Read in xData from R-export list and convert to list of pointers
     NumericVector AvxData = expL["mataspect_x"];
     list<float> *AxData;
     AxData = NVtoL<float>(AvxData);
-
-    // list<uint32_t> *iData;
-    // iData = as.INTEGER(mataspect.slot("i"));
-    // list<uint32_t> *Dim;
-    // Dim = (unsigned int *)INTEGER(mataspect.slot("Dim"));
-    // list<uint32_t> *pData;
-    // pData = (unsigned int *)INTEGER(mataspect.slot("p"));
-    // list<float> *xData;
-    // xData = (float)INTEGER(mataspect.slot("x"));
 
     cout << "\t\tp array size: " << ApData->size() << " [First entry value: " << ApData->front() << "]" << endl;
     cout << "\t\ti array size: " << AiData->size() << " [First entry value: " << AiData->front() << "]" << endl;
     cout << "\t\tx array size: " << AxData->size() << " [First entry value: " << AxData->front() << "]" << endl;
 
+    // Read the dimnames of the sparse matrices.
+    // Add a Nul to the end, because thats what happened in writing to a temporary txt file in R
     string mataspectDimnames1 = expL["mataspect_dimnames1"];
     mataspectDimnames1.push_back('\0');
     string mataspectDimnames2 = expL["mataspect_dimnames2"];
     mataspectDimnames2.push_back('\0');
 
+    // Create Header for sparse Aspect Matrix
+    // read Dimensions of Matrix by iterating through the list Dim
     struct sparseMatrixHeader Asmh;
     list<uint32_t>::iterator Ali = ADim->begin();
     Asmh.dim1 = *Ali;
@@ -422,7 +369,6 @@ void WriteListToBinary(List expL, std::string outfile)
     // Write the x object
     for (list<float>::iterator iter = AxData->begin(); iter != AxData->end(); ++iter)
     {
-        //AsmhData << *iter;
         AsmhData.write((const char *) &*iter, sizeof(uint32_t));
     }
 
@@ -435,7 +381,7 @@ void WriteListToBinary(List expL, std::string outfile)
 
     struct entry *AsparseMatrixEntry = make_entry_from_string("aspectMatrix", AsmhDataString);
     entries.push_back(*AsparseMatrixEntry);
-    // ------------------------  Aspect Matrix  ------------------------
+    // ------------------------   ------------------------
 
     // - Aspect Information
     struct entry *aspectInformationEntry = make_entry_from_string("aspectinformation", aspectInformationData);

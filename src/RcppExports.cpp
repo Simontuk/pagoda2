@@ -316,6 +316,29 @@ BEGIN_RCPP
 END_RCPP
 }
 
+RcppExport SEXP pagoda2_arma_mat_cor(SEXP);
+RcppExport SEXP pagoda2_avg_rank(SEXP);
+RcppExport SEXP pagoda2_closestNPointsToSegments(SEXP, SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_closestNSegmentsToPoints(SEXP, SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_colMeanVarS(SEXP, SEXP);
+RcppExport SEXP pagoda2_colSumByFac(SEXP, SEXP);
+RcppExport SEXP pagoda2_hnswKnn(SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_hnswKnn2(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_hnswKnn3test(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_hnswKnnJS(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_hnswKnnLp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_inplaceColMult(SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_inplaceWinsorizeSparseCols(SEXP, SEXP);
+RcppExport SEXP pagoda2_jsDist(SEXP);
+RcppExport SEXP pagoda2_matWCorr(SEXP, SEXP);
+RcppExport SEXP pagoda2_nearbyPointsGreedyCluster(SEXP, SEXP);
+RcppExport SEXP pagoda2_non0LogColLmS(SEXP, SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_orderColumnRows(SEXP, SEXP);
+RcppExport SEXP pagoda2_plSemicompleteCor2(SEXP);
+RcppExport SEXP pagoda2_smatColVecCorr(SEXP, SEXP, SEXP);
+RcppExport SEXP pagoda2_sparse_matrix_column_ranks(SEXP);
+RcppExport SEXP pagoda2_winsorizeMatrix(SEXP, SEXP);
+
 static const R_CallMethodDef CallEntries[] = {
     {"_pagoda2_WriteListToBinary", (DL_FUNC) &_pagoda2_WriteListToBinary, 2},
     {"_pagoda2_non0LogColLmS", (DL_FUNC) &_pagoda2_non0LogColLmS, 4},
