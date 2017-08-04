@@ -6,8 +6,10 @@ which cmake
 
 export NMSLIB_PATH=inst/include
 cd $NMSLIB_PATH/similarity_search
-mkdir _build
-cd _build
-cmake .
+if [ -d "_build"]; 
+    then cd _build
+    else mkdir _build && cd _build
+fi
+cmake ..
 make
-cd .. && rm _build
+cd .. && rm -R _build
